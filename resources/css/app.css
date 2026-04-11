@@ -1,0 +1,22 @@
+@import "tailwindcss";
+
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../../storage/framework/views/*.php';
+@source '../**/*.blade.php';
+@source '../**/*.js';
+
+@layer utilities {
+    .clip-path-initial { clip-path: polygon(0 0, 100% 0, 100% 0, 0 0); }
+    .clip-path-final { clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%); }
+}
+@layer theme {
+    .font-sans {
+        /* Memperluas font default 'sans' */
+        font-family: 'Poppins', ui-sans-serif, system-ui, sans-serif;
+    }
+
+    .font-poppins {
+        /* Menambahkan font kustom baru bernama 'poppins' */
+        font-family: 'Poppins', sans-serif;
+    }
+}
