@@ -19,7 +19,7 @@ class Menu extends Model
         return $this->belongsTo(Heading::class, 'app_heading_id', 'app_heading_id');
     }
 
-    public function role_menu()
+    public function roleMenu()
     {
         return $this->hasMany(Role_menu::class, 'menu_id', 'menu_id');
     }
