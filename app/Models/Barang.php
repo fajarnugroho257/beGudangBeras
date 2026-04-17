@@ -10,7 +10,7 @@ class Barang extends Model
     use HasFactory;
 
     protected $table = 'barang';
-    protected $fillable = ['nama', 'tipe'];
+    protected $fillable = ['nama', 'tipe', 'jenis'];
 
     protected $casts = [
         'tipe' => 'string',

@@ -23,6 +23,7 @@ class DatabaseSeeder extends Seeder
             HeadingMenuTableseeder::class,
             MenuTableseeder::class,
             RoleMenuTableseeder::class,
+            TransactionSeeder::class,
         ]);
 
     }
