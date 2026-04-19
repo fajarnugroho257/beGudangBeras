@@ -12,7 +12,7 @@ class Suplier extends Model
 
     protected $table = 'suplier';
 
-    protected $fillable = ['suplier_nama', 'suplier_tgl'];
+    protected $fillable = ['suplier_nama', 'alamat', 'no_hp', 'suplier_tgl', 'suplier_nota_st'];
 
     //
     public function pembelian(): HasMany

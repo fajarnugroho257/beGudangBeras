@@ -8,6 +8,7 @@ use App\Http\Controllers\api\NotaController;
 use App\Http\Controllers\api\PembelianController;
 use App\Http\Controllers\api\PengirimanController;
 use App\Http\Controllers\api\SaldoController;
+use App\Http\Controllers\api\SuplierController;
 use App\Http\Controllers\KategoriController;
 use App\Models\api\Karyawan;
 use Illuminate\Http\Request;
@@ -118,6 +119,14 @@ Route::middleware(['jwt.verify'])->group(function () {
 
 Route::middleware(['jwt.verify'])->group(function () {
     Route::post('/update-saldo', action: [SaldoController::class, 'store']);
+});
+
+// suplier
+Route::middleware(['jwt.verify'])->group(function () {
+    Route::get('/get-suplier', [SuplierController::class, 'index']);
+    Route::post('/create-suplier', [SuplierController::class, 'store']);
+    Route::get('/get-suplier-by-id/{id}', [SuplierController::class, 'show']);
+    Route::post('/update-suplier/{id}', [SuplierController::class, 'update']);
 });
 
 // Route::get('/nota-cetak-image/{nota_id}', [NotaController::class, 'cetak_image']);
