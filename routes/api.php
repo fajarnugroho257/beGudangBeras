@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\api\BarangController;
 use App\Http\Controllers\api\KardusController;
 use App\Http\Controllers\api\KaryawanController;
 use App\Http\Controllers\api\LaporanController;
@@ -127,6 +128,14 @@ Route::middleware(['jwt.verify'])->group(function () {
     Route::post('/create-suplier', [SuplierController::class, 'store']);
     Route::get('/get-suplier-by-id/{id}', [SuplierController::class, 'show']);
     Route::post('/update-suplier/{id}', [SuplierController::class, 'update']);
+});
+
+// barang
+Route::middleware(['jwt.verify'])->group(function () {
+    Route::get('/get-barang', [BarangController::class, 'index']);
+    Route::post('/create-barang', [BarangController::class, 'store']);
+    Route::get('/get-barang-by-id/{id}', [BarangController::class, 'show']);
+    Route::post('/update-barang/{id}', [BarangController::class, 'update']);
 });
 
 // Route::get('/nota-cetak-image/{nota_id}', [NotaController::class, 'cetak_image']);
