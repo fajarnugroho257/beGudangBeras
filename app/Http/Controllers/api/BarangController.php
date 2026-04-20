@@ -12,10 +12,15 @@ class BarangController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        // response
-        $dataBarang = Barang::all();
+        $query = Barang::query();
+
+        if ($request->tipe) {
+            $query->where('tipe', $request->tipe);
+        }
+
+        $dataBarang = $query->get();
 
         return response()->json([
             'success' => true,
