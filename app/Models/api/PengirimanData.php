@@ -5,6 +5,7 @@ namespace App\Models\api;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class PengirimanData extends Model
 {
@@ -12,10 +13,24 @@ class PengirimanData extends Model
 
     protected $table = 'pengiriman_data';
 
-    protected $fillable = ['pengiriman_id', 'data_merek', 'data_barang', 'data_box', 'data_box_rupiah', 'data_tonase', 'data_estimasi', 'data_datas', 'data_st', 'data_harga', 'data_total'];
+    protected $fillable = ['pengiriman_id', 'barang_id', 'data_tonase', 'data_harga', 'data_total', 'pembayaran_st'];
+
+    protected $casts = [
+        'pembayaran_st' => 'string',
+    ];
 
     public function pengiriman(): BelongsTo
     {
         return $this->belongsTo(Pengiriman::class, 'pengiriman_id', 'id');
+    }
+
+    public function barang(): BelongsTo
+    {
+        return $this->belongsTo(Barang::class, 'barang_id', 'id');
+    }
+
+    public function operasional(): HasMany
+    {
+        return $this->hasMany(Operasional::class, 'pengiriman_data_id', 'id');
     }
 }

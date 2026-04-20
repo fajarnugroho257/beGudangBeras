@@ -7,6 +7,7 @@ use Illuminate\Database\Seeder;
 use App\Models\Suplier;
 use App\Models\Barang;
 use App\Models\Pembelian;
+use App\Models\PembelianData;
 use App\Models\StokBarang;
 use App\Models\Pengiriman;
 use App\Models\PengirimanData;
@@ -24,16 +25,12 @@ class TransactionSeeder extends Seeder
             'suplier_nama' => 'CV Beras Jaya',
             'alamat' => 'Jl. Ahmad Yani No. 45, Surabaya',
             'no_hp' => '081234567890',
-            'suplier_tgl' => now()->subMonths(6),
-            'suplier_nota_st' => 'no',
         ]);
 
         $suplier2 = Suplier::create([
             'suplier_nama' => 'UD Gabah Murni',
             'alamat' => 'Jl. Raya Sidoarjo Km 5, Sidoarjo',
             'no_hp' => '081234567891',
-            'suplier_tgl' => now()->subMonths(3),
-            'suplier_nota_st' => 'yes',
         ]);
 
         // 2. Create Products (Barang)
@@ -61,6 +58,11 @@ class TransactionSeeder extends Seeder
         // Purchase 1: Buy Premium Rice from Suplier 1
         $pembelian1 = Pembelian::create([
             'suplier_id' => $suplier1->id,
+            'pembelian_tgl' => now()->subDays(10),
+        ]);
+
+        PembelianData::create([
+            'pembelian_id' => $pembelian1->id,
             'pembayaran' => 'hutang',
             'barang_id' => $beras_premium->id,
             'pembelian_kotor' => '1000',
@@ -74,6 +76,11 @@ class TransactionSeeder extends Seeder
         // Purchase 2: Buy Medium Rice from Suplier 1
         $pembelian2 = Pembelian::create([
             'suplier_id' => $suplier1->id,
+            'pembelian_tgl' => now()->subDays(8),
+        ]);
+
+        PembelianData::create([
+            'pembelian_id' => $pembelian2->id,
             'pembayaran' => 'cash',
             'barang_id' => $beras_medium->id,
             'pembelian_kotor' => '1500',
@@ -87,6 +94,11 @@ class TransactionSeeder extends Seeder
         // Purchase 3: Buy Gabah from Suplier 2
         $pembelian3 = Pembelian::create([
             'suplier_id' => $suplier2->id,
+            'pembelian_tgl' => now()->subDays(5),
+        ]);
+
+        PembelianData::create([
+            'pembelian_id' => $pembelian3->id,
             'pembayaran' => 'hutang',
             'barang_id' => $gabah->id,
             'pembelian_kotor' => '2000',

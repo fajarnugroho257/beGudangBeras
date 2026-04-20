@@ -12,19 +12,11 @@ class Pembelian extends Model
     protected $table = 'pembelian';
     protected $fillable = [
         'suplier_id',
-        'pembayaran',
-        'barang_id',
-        'pembelian_kotor',
-        'pembelian_potongan',
-        'pembelian_bersih',
-        'pembelian_harga',
-        'pembelian_total',
-        'pembelian_nota_st',
+        'pembelian_tgl',
     ];
 
     protected $casts = [
-        'pembayaran' => 'string',
-        'pembelian_nota_st' => 'string',
+        'pembelian_tgl' => 'date',
     ];
 
     public function suplier()
@@ -32,8 +24,8 @@ class Pembelian extends Model
         return $this->belongsTo(Suplier::class, 'suplier_id', 'id');
     }
 
-    public function barang()
+    public function pembelianData()
     {
-        return $this->belongsTo(Barang::class, 'barang_id', 'id');
+        return $this->hasMany(PembelianData::class, 'pembelian_id', 'id');
     }
 }

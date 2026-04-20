@@ -12,10 +12,30 @@ class Pengiriman extends Model
 
     protected $table = 'pengiriman';
 
-    protected $fillable = ['pengiriman_tgl'];
+    protected $fillable = ['nama_pembeli', 'pengiriman_tgl', 'uang_muka', 'status'];
+
+    protected $casts = [
+        'pengiriman_tgl' => 'date',
+        'status' => 'string',
+    ];
+
+    public function bebanPengiriman(): HasMany
+    {
+        return $this->hasMany(BebanPengiriman::class, 'pengiriman_id', 'id');
+    }
+
+    public function pengirimanBebanKaryawan(): HasMany
+    {
+        return $this->hasMany(PengirimanBebanKaryawan::class, 'pengiriman_id', 'id');
+    }
+
+    public function pengirimanBebanLain(): HasMany
+    {
+        return $this->hasMany(PengirimanBebanLain::class, 'pengiriman_id', 'id');
+    }
 
     public function pengirimanData(): HasMany
     {
-        return $this->HasMany(PengirimanData::class, 'pengiriman_id');
+        return $this->hasMany(PengirimanData::class, 'pengiriman_id', 'id');
     }
 }

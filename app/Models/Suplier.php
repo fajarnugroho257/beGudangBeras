@@ -10,11 +10,10 @@ class Suplier extends Model
     use HasFactory;
 
     protected $table = 'suplier';
-    protected $fillable = ['suplier_nama', 'alamat', 'no_hp', 'suplier_tgl', 'suplier_nota_st'];
+    protected $fillable = ['suplier_nama', 'alamat', 'no_hp'];
 
     protected $casts = [
-        'suplier_tgl' => 'date',
-        'suplier_nota_st' => 'string',
+        //
     ];
 
     public function notaData()

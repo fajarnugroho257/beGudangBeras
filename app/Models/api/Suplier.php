@@ -12,16 +12,24 @@ class Suplier extends Model
 
     protected $table = 'suplier';
 
-    protected $fillable = ['suplier_nama', 'alamat', 'no_hp', 'suplier_tgl', 'suplier_nota_st'];
+        protected $fillable = ['suplier_nama', 'alamat', 'no_hp'];
 
-    //
+        protected $casts = [
+            //
+        ];
+
+    public function notaData(): HasMany
+    {
+        return $this->hasMany(NotaData::class, 'suplier_id', 'id');
+    }
+
     public function pembelian(): HasMany
     {
         return $this->hasMany(Pembelian::class, 'suplier_id', 'id');
     }
 
-    public function nota_data(): HasMany
+    public function stokBarang(): HasMany
     {
-        return $this->HasMany(NotaData::class, 'suplier_id', 'id');
+        return $this->hasMany(StokBarang::class, 'suplier_id', 'id');
     }
 }

@@ -5,6 +5,7 @@ namespace App\Models\api;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\belongsTo;
+use Illuminate\Database\Eloquent\Relations\hasMany;
 
 class Pembelian extends Model
 {
@@ -14,19 +15,22 @@ class Pembelian extends Model
 
     protected $fillable = [
         'suplier_id',
-        'pembayaran',
-        'pembelian_nama',
-        'pembelian_kotor',
-        'pembelian_potongan',
-        'pembelian_bersih',
-        'pembelian_harga',
-        'pembelian_total',
+        'pembelian_tgl',
+    ];
+
+    protected $casts = [
+        'pembelian_tgl' => 'date',
     ];
 
     //
     public function suplier(): belongsTo
     {
         return $this->belongsTo(Suplier::class, 'suplier_id', 'id');
+    }
+
+    public function pembelianData(): hasMany
+    {
+        return $this->hasMany(PembelianData::class, 'pembelian_id', 'id');
     }
 
     // Menambahkan Scope untuk menghitung total pembelian

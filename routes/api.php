@@ -41,10 +41,10 @@ Route::middleware('auth:api')->get('/kategori', function (Request $request) {
 Route::middleware(['jwt.verify'])->group(function () {
     Route::post('/add-Pembelian', [PembelianController::class, 'store']);
     Route::post('/index-Pembelian', [PembelianController::class, 'index']);
-    Route::get('/detail-Pembelian/{suplier_id}', [PembelianController::class, 'show']);
+    Route::get('/detail-Pembelian/{pembelian_id}', [PembelianController::class, 'show']);
     Route::post('/edit-Pembelian', [PembelianController::class, 'update']);
     Route::post('/delete-Pembelian', [PembelianController::class, 'destroy']);
-    Route::get('/test-cetak-image/{suplier_id}', [PembelianController::class, 'cetak_image']);
+    Route::get('/test-cetak-image/{pembelian_id}', [PembelianController::class, 'cetak_image']);
     Route::post('/cetak-laporan', [PembelianController::class, 'all_data']);
 });
 //
