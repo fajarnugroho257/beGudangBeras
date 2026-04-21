@@ -3,14 +3,14 @@
 namespace App\Http\Controllers\api;
 
 use App\Http\Controllers\Controller;
-use App\Models\api\Data_kardus;
 use App\Models\api\Karyawan;
 use App\Models\api\Pengiriman;
 use App\Models\api\PengirimanBebanKaryawan;
 use App\Models\api\PengirimanBebanLain;
 use App\Models\api\PengirimanData;
-use Illuminate\Http\Request;
+use App\Models\StokBarang;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
 use Intervention\Image\ImageManagerStatic as Image;
 
@@ -21,40 +21,30 @@ class PengirimanController extends Controller
      */
     public function index(Request $request)
     {
-        $data = Pengiriman::select('pengiriman.*', 'beban_pengiriman.jumlah')
-            ->where('pengiriman_tgl', '>=', $request->dateFrom)
+        $data = Pengiriman::where('pengiriman_tgl', '>=', $request->dateFrom)
             ->where('pengiriman_tgl', '<=', $request->dateTo)
-            ->leftJoin('beban_pengiriman', 'pengiriman.id', '=', 'beban_pengiriman.pengiriman_id')
             ->orderBy('pengiriman_tgl', 'DESC')
             ->get();
+        
         $data_kosong = [
             [
                 'created_at' => '',
-                'data_barang' => '',
-                'data_box' => 0,
-                'data_box_rupiah' => '0',
+                'barang_id' => '',
                 'data_harga' => '0',
-                'data_id' => '',
-                'data_merek' => '',
-                'data_st' => '',
                 'data_tonase' => '0',
                 'data_total' => '0',
-                'data_estimasi' => '0',
-                'data_datas' => '0',
+                'pembayaran_st' => '',
                 'pengiriman_id' => '0',
             ],
         ];
+        
         foreach ($data as $key => $value) {
-            $listPengiriman = PengirimanData::where('pengiriman_id', '=', $value['id'])
-                ->where(DB::raw("CONCAT(data_merek, ' ', data_barang)"), 'LIKE', '%'.$request->params.'%')
-                ->get();
+            $listPengiriman = PengirimanData::where('pengiriman_id', '=', $value['id'])->get();
             $jlh = count($listPengiriman);
             $data[$key]['listPengiriman'] = $jlh > 0 ? $listPengiriman : $data_kosong;
             $bebanKaryawan = PengirimanBebanKaryawan::where('pengiriman_id', $value['id'])->sum('beban_value');
             $bebanLain = PengirimanBebanLain::where('pengiriman_id', $value['id'])->sum('beban_value');
-            // kardus
-            $bebanKardus = Pengiriman::withSum('pengirimanData as totalRupiahKardus', 'data_box_rupiah')->where('id', $value['id'])->first();
-            $data[$key]['bebanKaryawan'] = $bebanKaryawan + $bebanLain + $bebanKardus->totalRupiahKardus;
+            $data[$key]['totalBeban'] = $bebanKaryawan + $bebanLain;
         }
 
         return response()->json([
@@ -90,191 +80,197 @@ class PengirimanController extends Controller
         $data = $request->all();
         $formData = $data['formData'];
         $pengirimanData = $data['pengirimanData'];
-        // last pengiriman ID
-        $dataPengiriman = [
-            'pengiriman_tgl' => $pengirimanData['pengiriman_tgl'],
-        ];
-        $stPengiriman = Pengiriman::create($dataPengiriman);
-        // data pengiriman
-        if ($stPengiriman) {
-            $jlhKardusTerpakai = 0;
-            foreach ($formData as $key => $value) {
-                $dataPengiriman = [
+        
+        $stPengiriman = DB::transaction(function () use ($pengirimanData, $formData) {
+
+            // 1. Create pengiriman
+            $stPengiriman = Pengiriman::create([
+                'pengiriman_tgl' => $pengirimanData['pengiriman_tgl'],
+                'nama_pembeli'   => $pengirimanData['nama_pembeli'] ?? null,
+                'uang_muka'      => $pengirimanData['uang_muka'] ?? null,
+                'status'         => $pengirimanData['status'] ?? null,
+            ]);
+
+            // 2. Create pengiriman_data + update stock
+            foreach ($formData as $value) {
+
+                PengirimanData::create([
                     'pengiriman_id' => $stPengiriman->id,
-                    'data_merek' => $value['data_merek'],
-                    'data_barang' => $value['data_barang'],
-                    'data_box' => (int) $value['data_box'],
-                    'data_box_rupiah' => (int) $value['data_box_rupiah'],
-                    'data_tonase' => $value['data_tonase'],
-                    'data_datas' => $value['data_datas'],
-                    'data_estimasi' => $value['data_estimasi'],
-                ];
-                //
-                PengirimanData::create($dataPengiriman);
-                // print_r($dataPembelian);
-                $jlhKardusTerpakai += $value['data_box'];
+                    'barang_id'     => $value['barang_id'] ?? null,
+                    'data_tonase'   => $value['data_tonase'],
+                    'data_harga'    => $value['data_harga'],
+                    'data_total'    => $value['data_total'],
+                    'pembayaran_st' => $value['pembayaran_st'] ?? 'cash',
+                    'supplier_id'   => $value['supplier_id'] ?? null,
+                ]);
+
+                if (!empty($value['barang_id']) && !empty($value['supplier_id'])) {
+
+                    $stokBarang = StokBarang::where('barang_id', $value['barang_id'])
+                        ->where('suplier_id', $value['supplier_id'])
+                        ->lockForUpdate()
+                        ->first();
+
+                    if (!$stokBarang) {
+                        throw new \Exception('Stok barang tidak ditemukan');
+                    }
+
+                    if ($stokBarang->stok < $value['data_tonase']) {
+                        throw new \Exception('Stok tidak cukup');
+                    }
+
+                    $stokBarang->decrement('stok', $value['data_tonase']);
+                }
             }
-            // update kardus
-            $id = '1';
-            $dtKardus = Data_kardus::find($id);
-            $sisa = $dtKardus->jumlah - $jlhKardusTerpakai;
-            $dtKardus->jumlah = $sisa;
-            $dtKardus->update();
-        }
+
+            return $stPengiriman;
+        });
+        
         // response
         if ($data['type'] == 'simcetak') {
             // Ambil data dari database
-            $data = Pengiriman::with('pengirimanData')->where('pengiriman_id', 'LIKE', $stPengiriman->id)->first();
-            // Konfigurasi ukuran tabel
-            $ttlData = count($data->pengirimanData);
-            $ttlData = $ttlData == 1 ? 2 : $ttlData;
-            $width = 450;    // Lebar tabel
-            $height = (120 * $ttlData);   // Tinggi tabel
-            $rowHeight = 40; // Tinggi setiap baris
-            $padding = 10;   // Jarak teks ke border sel
-            $titleHeight = 60; // Ruang untuk keterangan di atas tabel
+            $data = Pengiriman::with('pengirimanData.barang')->find($stPengiriman->id);
+            
+            if ($data) {
+                // Generate image/print
+                $ttlData = count($data->pengirimanData);
+                $ttlData = $ttlData == 1 ? 2 : $ttlData;
+                $width = 500;
+                $height = (120 * $ttlData);
+                $rowHeight = 40;
+                $padding = 10;
+                $titleHeight = 60;
 
-            // Membuat canvas
-            $img = Image::canvas($width, $height, '#ffffff');
-            // Tambahkan keterangan di atas tabel
-            $img->text('Tanggal', 10, 25, function ($font) {
-                $font->file(public_path('fonts/arial.ttf'));
-                $font->size(16);
-                $font->color('#000000');
-                $font->align('left'); // Center secara horizontal
-                $font->valign('middle'); // Center secara vertikal
-            });
-            $img->text(':', 90, 25, function ($font) {
-                $font->file(public_path('fonts/arial.ttf'));
-                $font->size(16);
-                $font->color('#000000');
-                $font->align('left'); // Center secara horizontal
-                $font->valign('middle'); // Center secara vertikal
-            });
-            $img->text(date('d F Y', strtotime($data->pengiriman_tgl)), 120, 25, function ($font) {
-                $font->file(public_path('fonts/arial.ttf'));
-                $font->size(16);
-                $font->color('#000000');
-                $font->align('left'); // Center secara horizontal
-                $font->valign('middle'); // Center secara vertikal
-            });
-            $yPosition = $titleHeight;
-            // Header tabel
-            $img->rectangle(0, $yPosition, $width, $yPosition + $rowHeight, function ($draw) {
-                $draw->border(1, '#000000'); // Border header
-            });
-            $img->text('No', $padding, $yPosition + ($rowHeight / 2), function ($font) {
-                $font->file(public_path('fonts/arial.ttf'));
-                $font->size(14);
-                $font->color('#000000');
-                $font->valign('middle');
-            });
-            $img->text('Merek', 50, $yPosition + ($rowHeight / 2), function ($font) {
-                $font->file(public_path('fonts/arial.ttf'));
-                $font->size(14);
-                $font->color('#000000');
-                $font->valign('middle');
-            });
-            $img->text('Nama Barang', 150, $yPosition + ($rowHeight / 2), function ($font) {
-                $font->file(public_path('fonts/arial.ttf'));
-                $font->size(14);
-                $font->color('#000000');
-                $font->valign('middle');
-            });
-            $img->text('Tonase', 280, $yPosition + ($rowHeight / 2), function ($font) {
-                $font->file(public_path('fonts/arial.ttf'));
-                $font->size(14);
-                $font->color('#000000');
-                $font->valign('middle');
-            });
-            $img->text('Total', 360, $yPosition + ($rowHeight / 2), function ($font) {
-                $font->file(public_path('fonts/arial.ttf'));
-                $font->size(14);
-                $font->color('#000000');
-                $font->valign('middle');
-            });
-
-            // Gambar data dan border
-            $y = $rowHeight;
-            $no = 1;
-            $grandTotal = 0;
-            $yPosition += $rowHeight;
-            foreach ($data->pengirimanData as $row) {
-                // Gambar border baris
+                $img = Image::canvas($width, $height, '#ffffff');
+                $img->text('Tanggal', 10, 25, function ($font) {
+                    $font->file(public_path('fonts/arial.ttf'));
+                    $font->size(16);
+                    $font->color('#000000');
+                    $font->align('left');
+                    $font->valign('middle');
+                });
+                $img->text(':', 90, 25, function ($font) {
+                    $font->file(public_path('fonts/arial.ttf'));
+                    $font->size(16);
+                    $font->color('#000000');
+                    $font->align('left');
+                    $font->valign('middle');
+                });
+                $img->text($data->pengiriman_tgl->format('d F Y'), 120, 25, function ($font) {
+                    $font->file(public_path('fonts/arial.ttf'));
+                    $font->size(16);
+                    $font->color('#000000');
+                    $font->align('left');
+                    $font->valign('middle');
+                });
+                
+                $yPosition = $titleHeight;
                 $img->rectangle(0, $yPosition, $width, $yPosition + $rowHeight, function ($draw) {
                     $draw->border(1, '#000000');
                 });
-                // grand total
-                $grandTotal += $row->data_total;
-                // Isi teks
-                $img->text($no++, $padding, $yPosition + ($rowHeight / 2), function ($font) {
+                
+                $img->text('No', $padding, $yPosition + ($rowHeight / 2), function ($font) {
+                    $font->file(public_path('fonts/arial.ttf'));
+                    $font->size(14);
+                    $font->color('#000000');
+                    $font->valign('middle');
+                });
+                $img->text('Barang', 50, $yPosition + ($rowHeight / 2), function ($font) {
+                    $font->file(public_path('fonts/arial.ttf'));
+                    $font->size(14);
+                    $font->color('#000000');
+                    $font->valign('middle');
+                });
+                $img->text('Tonase', 200, $yPosition + ($rowHeight / 2), function ($font) {
+                    $font->file(public_path('fonts/arial.ttf'));
+                    $font->size(14);
+                    $font->color('#000000');
+                    $font->valign('middle');
+                });
+                $img->text('Harga', 300, $yPosition + ($rowHeight / 2), function ($font) {
+                    $font->file(public_path('fonts/arial.ttf'));
+                    $font->size(14);
+                    $font->color('#000000');
+                    $font->valign('middle');
+                });
+                $img->text('Total', 400, $yPosition + ($rowHeight / 2), function ($font) {
+                    $font->file(public_path('fonts/arial.ttf'));
+                    $font->size(14);
+                    $font->color('#000000');
+                    $font->valign('middle');
+                });
+
+                $no = 1;
+                $grandTotal = 0;
+                $yPosition += $rowHeight;
+                foreach ($data->pengirimanData as $row) {
+                    $img->rectangle(0, $yPosition, $width, $yPosition + $rowHeight, function ($draw) {
+                        $draw->border(1, '#000000');
+                    });
+                    $grandTotal += $row->data_total;
+                    
+                    $img->text($no++, $padding, $yPosition + ($rowHeight / 2), function ($font) {
+                        $font->file(public_path('fonts/arial.ttf'));
+                        $font->size(12);
+                        $font->color('#000000');
+                        $font->valign('middle');
+                    });
+                    
+                    $barangNama = $row->barang ? $row->barang->nama : 'N/A';
+                    $img->text($barangNama, 50, $yPosition + ($rowHeight / 2), function ($font) {
+                        $font->file(public_path('fonts/arial.ttf'));
+                        $font->size(12);
+                        $font->color('#000000');
+                        $font->valign('middle');
+                    });
+                    $img->text($row->data_tonase, 200, $yPosition + ($rowHeight / 2), function ($font) {
+                        $font->file(public_path('fonts/arial.ttf'));
+                        $font->size(12);
+                        $font->color('#000000');
+                        $font->valign('middle');
+                    });
+                    $img->text('Rp '.number_format($row->data_harga, 0, ',', '.'), 300, $yPosition + ($rowHeight / 2), function ($font) {
+                        $font->file(public_path('fonts/arial.ttf'));
+                        $font->size(12);
+                        $font->color('#000000');
+                        $font->valign('middle');
+                    });
+                    $img->text('Rp '.number_format($row->data_total, 0, ',', '.'), 400, $yPosition + ($rowHeight / 2), function ($font) {
+                        $font->file(public_path('fonts/arial.ttf'));
+                        $font->size(12);
+                        $font->color('#000000');
+                        $font->valign('middle');
+                    });
+
+                    $yPosition += $rowHeight;
+                }
+
+                $img->text('Grand Total', 300, $yPosition + ($rowHeight / 2), function ($font) {
                     $font->file(public_path('fonts/arial.ttf'));
                     $font->size(12);
                     $font->color('#000000');
                     $font->valign('middle');
                 });
-                $img->text($row->data_merek, 50, $yPosition + ($rowHeight / 2), function ($font) {
-                    $font->file(public_path('fonts/arial.ttf'));
-                    $font->size(12);
-                    $font->color('#000000');
-                    $font->valign('middle');
-                });
-                $img->text($row->data_barang, 150, $yPosition + ($rowHeight / 2), function ($font) {
-                    $font->file(public_path('fonts/arial.ttf'));
-                    $font->size(12);
-                    $font->color('#000000');
-                    $font->valign('middle');
-                });
-                $img->text($row->data_tonase, 280, $yPosition + ($rowHeight / 2), function ($font) {
-                    $font->file(public_path('fonts/arial.ttf'));
-                    $font->size(12);
-                    $font->color('#000000');
-                    $font->valign('middle');
-                });
-                $img->text('Rp '.number_format($row->data_total, 0, ',', '.'), 360, $yPosition + ($rowHeight / 2), function ($font) {
+                $img->text('Rp '.number_format($grandTotal, 0, ',', '.'), 400, $yPosition + ($rowHeight / 2), function ($font) {
                     $font->file(public_path('fonts/arial.ttf'));
                     $font->size(12);
                     $font->color('#000000');
                     $font->valign('middle');
                 });
 
-                $yPosition += $rowHeight; // Pindah ke baris berikutnya
-            }
-
-            $img->text('Grand Total', 280, $yPosition + ($rowHeight / 2), function ($font) {
-                $font->file(public_path('fonts/arial.ttf'));
-                $font->size(12);
-                $font->color('#000000');
-                $font->valign('middle');
-            });
-            $img->text('Rp '.number_format($grandTotal, 0, ',', '.'), 360, $yPosition + ($rowHeight / 2), function ($font) {
-                $font->file(public_path('fonts/arial.ttf'));
-                $font->size(12);
-                $font->color('#000000');
-                $font->valign('middle');
-            });
-
-            // Simpan atau kirim ke browser
-            if ($img->save(public_path('tabel_pengiriman.png'))) {
-                // Tentukan path file, misalnya di folder 'public/uploads'
-                $filePath = public_path('tabel_pengiriman.png');
-
-                // Cek apakah file ada
-                if (File::exists($filePath)) {
-                    // Mengembalikan response download
-                    // return response()->download($filePath);
+                if ($img->save(public_path('tabel_pengiriman.png'))) {
                     return $img->response('png');
-                } else {
-                    // Jika file tidak ditemukan, mengembalikan error 404
-                    return response()->json(['error' => 'File not found.'], 404);
                 }
             }
-            // return $img->response('png');
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal membuat cetakan',
+            ], 500);
         } else {
             return response()->json([
                 'success' => true,
-                'data' => $data,
-                'dataPengiriman' => $dataPengiriman,
+                'data' => $stPengiriman,
             ], 200);
         }
 
@@ -300,23 +296,8 @@ class PengirimanController extends Controller
 
     public function last_data_id($pengiriman_id)
     {
-        // get last  id
-        $last_id = PengirimanData::select('data_id')->where('pengiriman_id', '=', $pengiriman_id)->orderBy('data_id', 'DESC')->first();
-        if (empty($last_id)) {
-            return $pengiriman_id.'-D01';
-        }
-        // echo $last_id->data_id . "<br>";
-        $last_number = substr($last_id->data_id, 7, 9) + 1;
-        // echo $last_number . "<br>";
-        // die;
-        $zero = '';
-        for ($i = strlen($last_number); $i <= 1; $i++) {
-            $zero .= '0';
-        }
-        $new_id = $pengiriman_id.'-P'.$zero.$last_number;
-
-        //
-        return $new_id;
+        // This method is no longer needed as data doesn't use custom IDs
+        return null;
     }
 
     /**
@@ -325,8 +306,15 @@ class PengirimanController extends Controller
     public function show($pengiriman_id)
     {
         $data = Pengiriman::find($pengiriman_id);
-        $kardus = Data_kardus::select('harga')->first();
-        $data['listPembelian'] = PengirimanData::select('*', DB::raw("$kardus->harga AS data_box_harga"))->where('pengiriman_id', $pengiriman_id)->get();
+        
+        if (!$data) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Pengiriman tidak ditemukan',
+            ], 404);
+        }
+        
+        $data['listPengiriman'] = PengirimanData::where('pengiriman_id', $pengiriman_id)->get();
 
         return response()->json([
             'success' => true,
@@ -351,33 +339,40 @@ class PengirimanController extends Controller
         $params = $request->all();
         $formData = $params['formData'];
         $pengirimanData = $params['pengirimanData'];
+        
+        // Find pengiriman
         $data = Pengiriman::where('id', '=', $pengirimanData['pengiriman_id'])->first();
-        // update pengiriman data
+        
+        if (!$data) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Pengiriman tidak ditemukan',
+            ], 404);
+        }
+        
+        // Update pengiriman data
         $data->pengiriman_tgl = $pengirimanData['pengiriman_tgl'];
         $data->update();
-        // delete pengiriman
-        PengirimanData::where('id', $pengirimanData['pengiriman_id'])->delete();
-        // insert lagi
+        
+        // Delete old pengiriman_data
+        PengirimanData::where('pengiriman_id', $pengirimanData['pengiriman_id'])->delete();
+        
+        // Insert new pengiriman_data
         foreach ($formData as $key => $value) {
-            $dataPengiriman = [
+            $dataPengirimanDetail = [
                 'pengiriman_id' => $pengirimanData['pengiriman_id'],
-                'data_merek' => $value['data_merek'],
-                'data_barang' => $value['data_barang'],
-                'data_box' => $value['data_box'],
+                'barang_id' => $value['barang_id'] ?? null,
                 'data_tonase' => $value['data_tonase'],
                 'data_harga' => $value['data_harga'],
                 'data_total' => $value['data_total'],
-                'data_box_rupiah' => $value['data_box_rupiah'],
-                'data_datas' => $value['data_datas'],
-                'data_estimasi' => $value['data_estimasi'],
-                'data_st' => $value['data_st'],
+                'pembayaran_st' => $value['pembayaran_st'] ?? null,
             ];
-            //
-            PengirimanData::create($dataPengiriman);
+            PengirimanData::create($dataPengirimanDetail);
         }
 
         return response()->json([
             'success' => true,
+            'message' => 'Data pengiriman berhasil diupdate',
             'data' => $params,
         ], 200);
     }
@@ -441,16 +436,11 @@ class PengirimanController extends Controller
     {
         $bebanKaryawan = PengirimanBebanKaryawan::where('pengiriman_id', $request->pengiriman_id)->get();
         $dataBebanLain = PengirimanBebanLain::where('pengiriman_id', $request->pengiriman_id)->get();
-        $bebanKardus = Pengiriman::withSum('pengirimanData as totalRupiahKardus', 'data_box_rupiah')->where('pengiriman_tgl', $request->pengiriman_tgl)->first();
 
-        $bebanKardus = empty($bebanKardus) ? 0 : $bebanKardus->totalRupiahKardus;
-
-        //
         return response()->json([
             'success' => true,
             'dataBebanKaryawan' => $bebanKaryawan,
             'dataBebanLain' => $dataBebanLain,
-            'bebanKardus' => $bebanKardus,
         ], 200);
     }
 
@@ -465,15 +455,19 @@ class PengirimanController extends Controller
 
     public function update_Status(Request $request)
     {
-        // print_r($request->all());
         $detail = PengirimanData::where('id', $request->data_id)->first();
-        if (empty($detail)) {
+        if (!$detail) {
             return response()->json([
                 'success' => false,
                 'message' => 'Data tidak ditemukan',
-            ], 200);
+            ], 404);
         }
-        $detail->data_st = $request->value;
+        
+        // Update pembayaran_st if provided
+        if (!empty($request->value)) {
+            $detail->pembayaran_st = $request->value;
+        }
+        
         if ($detail->save()) {
             return response()->json([
                 'success' => true,
@@ -490,11 +484,19 @@ class PengirimanController extends Controller
     public function cetak_image(string $pengiriman_id)
     {
         // Ambil data dari database
-        $data = Pengiriman::with('pengirimanData')->where('id', $pengiriman_id)->first();
+        $data = Pengiriman::with('pengirimanData.barang')->where('id', $pengiriman_id)->first();
+        
+        if (!$data) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Pengiriman tidak ditemukan',
+            ], 404);
+        }
+        
         // Konfigurasi ukuran tabel
         $ttlData = count($data->pengirimanData);
         $ttlData = $ttlData == 1 ? 2 : $ttlData;
-        $width = 450;    // Lebar tabel
+        $width = 500;    // Lebar tabel
         $height = (120 * $ttlData);   // Tinggi tabel
         $rowHeight = 40; // Tinggi setiap baris
         $padding = 10;   // Jarak teks ke border sel
@@ -507,27 +509,27 @@ class PengirimanController extends Controller
             $font->file(public_path('fonts/arial.ttf'));
             $font->size(16);
             $font->color('#000000');
-            $font->align('left'); // Center secara horizontal
-            $font->valign('middle'); // Center secara vertikal
+            $font->align('left');
+            $font->valign('middle');
         });
         $img->text(':', 90, 25, function ($font) {
             $font->file(public_path('fonts/arial.ttf'));
             $font->size(16);
             $font->color('#000000');
-            $font->align('left'); // Center secara horizontal
-            $font->valign('middle'); // Center secara vertikal
+            $font->align('left');
+            $font->valign('middle');
         });
-        $img->text(date('d F Y', strtotime($data->pengiriman_tgl)), 120, 25, function ($font) {
+        $img->text($data->pengiriman_tgl->format('d F Y'), 120, 25, function ($font) {
             $font->file(public_path('fonts/arial.ttf'));
             $font->size(16);
             $font->color('#000000');
-            $font->align('left'); // Center secara horizontal
-            $font->valign('middle'); // Center secara vertikal
+            $font->align('left');
+            $font->valign('middle');
         });
         $yPosition = $titleHeight;
         // Header tabel
         $img->rectangle(0, $yPosition, $width, $yPosition + $rowHeight, function ($draw) {
-            $draw->border(1, '#000000'); // Border header
+            $draw->border(1, '#000000');
         });
         $img->text('No', $padding, $yPosition + ($rowHeight / 2), function ($font) {
             $font->file(public_path('fonts/arial.ttf'));
@@ -535,25 +537,25 @@ class PengirimanController extends Controller
             $font->color('#000000');
             $font->valign('middle');
         });
-        $img->text('Merek', 50, $yPosition + ($rowHeight / 2), function ($font) {
+        $img->text('Barang', 50, $yPosition + ($rowHeight / 2), function ($font) {
             $font->file(public_path('fonts/arial.ttf'));
             $font->size(14);
             $font->color('#000000');
             $font->valign('middle');
         });
-        $img->text('Nama Barang', 150, $yPosition + ($rowHeight / 2), function ($font) {
+        $img->text('Tonase', 200, $yPosition + ($rowHeight / 2), function ($font) {
             $font->file(public_path('fonts/arial.ttf'));
             $font->size(14);
             $font->color('#000000');
             $font->valign('middle');
         });
-        $img->text('Tonase', 280, $yPosition + ($rowHeight / 2), function ($font) {
+        $img->text('Harga', 300, $yPosition + ($rowHeight / 2), function ($font) {
             $font->file(public_path('fonts/arial.ttf'));
             $font->size(14);
             $font->color('#000000');
             $font->valign('middle');
         });
-        $img->text('Total', 360, $yPosition + ($rowHeight / 2), function ($font) {
+        $img->text('Total', 400, $yPosition + ($rowHeight / 2), function ($font) {
             $font->file(public_path('fonts/arial.ttf'));
             $font->size(14);
             $font->color('#000000');
@@ -579,41 +581,42 @@ class PengirimanController extends Controller
                 $font->color('#000000');
                 $font->valign('middle');
             });
-            $img->text($row->data_merek, 50, $yPosition + ($rowHeight / 2), function ($font) {
+            $barangNama = $row->barang ? $row->barang->nama : 'N/A';
+            $img->text($barangNama, 50, $yPosition + ($rowHeight / 2), function ($font) {
                 $font->file(public_path('fonts/arial.ttf'));
                 $font->size(12);
                 $font->color('#000000');
                 $font->valign('middle');
             });
-            $img->text($row->data_barang, 150, $yPosition + ($rowHeight / 2), function ($font) {
+            $img->text($row->data_tonase, 200, $yPosition + ($rowHeight / 2), function ($font) {
                 $font->file(public_path('fonts/arial.ttf'));
                 $font->size(12);
                 $font->color('#000000');
                 $font->valign('middle');
             });
-            $img->text($row->data_tonase, 280, $yPosition + ($rowHeight / 2), function ($font) {
+            $img->text('Rp '.number_format($row->data_harga, 0, ',', '.'), 300, $yPosition + ($rowHeight / 2), function ($font) {
                 $font->file(public_path('fonts/arial.ttf'));
                 $font->size(12);
                 $font->color('#000000');
                 $font->valign('middle');
             });
-            $img->text('Rp '.number_format($row->data_total, 0, ',', '.'), 360, $yPosition + ($rowHeight / 2), function ($font) {
+            $img->text('Rp '.number_format($row->data_total, 0, ',', '.'), 400, $yPosition + ($rowHeight / 2), function ($font) {
                 $font->file(public_path('fonts/arial.ttf'));
                 $font->size(12);
                 $font->color('#000000');
                 $font->valign('middle');
             });
 
-            $yPosition += $rowHeight; // Pindah ke baris berikutnya
+            $yPosition += $rowHeight;
         }
 
-        $img->text('Grand Total', 280, $yPosition + ($rowHeight / 2), function ($font) {
+        $img->text('Grand Total', 300, $yPosition + ($rowHeight / 2), function ($font) {
             $font->file(public_path('fonts/arial.ttf'));
             $font->size(12);
             $font->color('#000000');
             $font->valign('middle');
         });
-        $img->text('Rp '.number_format($grandTotal, 0, ',', '.'), 360, $yPosition + ($rowHeight / 2), function ($font) {
+        $img->text('Rp '.number_format($grandTotal, 0, ',', '.'), 400, $yPosition + ($rowHeight / 2), function ($font) {
             $font->file(public_path('fonts/arial.ttf'));
             $font->size(12);
             $font->color('#000000');

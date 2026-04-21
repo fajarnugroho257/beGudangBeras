@@ -13,7 +13,7 @@ class PengirimanData extends Model
 
     protected $table = 'pengiriman_data';
 
-    protected $fillable = ['pengiriman_id', 'barang_id', 'data_tonase', 'data_harga', 'data_total', 'pembayaran_st'];
+    protected $fillable = ['pengiriman_id', 'barang_id', 'supplier_id', 'data_tonase', 'data_harga', 'data_total', 'pembayaran_st'];
 
     protected $casts = [
         'pembayaran_st' => 'string',

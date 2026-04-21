@@ -156,10 +156,11 @@ class TransactionSeeder extends Seeder
         $pengiriman_data1 = PengirimanData::create([
             'pengiriman_id' => $pengiriman1->id,
             'barang_id' => $beras_premium->id,
+            'supplier_id' => $suplier1->id,
             'data_tonase' => '100',
             'data_harga' => '12500',
             'data_total' => '1250000',
-            'pembayaran_st' => 'yes',
+            'pembayaran_st' => 'cash',
         ]);
 
         // Shipment 2: Sell Medium Rice
@@ -174,20 +175,23 @@ class TransactionSeeder extends Seeder
         $pengiriman_data2 = PengirimanData::create([
             'pengiriman_id' => $pengiriman2->id,
             'barang_id' => $beras_medium->id,
+            'supplier_id' => $suplier1->id,
             'data_tonase' => '150',
             'data_harga' => '9500',
             'data_total' => '1425000',
-            'pembayaran_st' => 'no',
+            'pembayaran_st' => 'hutang',
         ]);
 
         // Shipment Details 2b
         PengirimanData::create([
             'pengiriman_id' => $pengiriman2->id,
             'barang_id' => $katul->id,
+            'supplier_id' => $suplier1->id,
             'data_tonase' => '30',
             'data_harga' => '2500',
             'data_total' => '75000',
-            'pembayaran_st' => 'no',
+            'pembayaran_st' => 'hutang',
+            'supplier_id' => $suplier1->id, 
         ]);
 
         // Shipment 3: Draft Shipment (not yet completed)
@@ -205,7 +209,8 @@ class TransactionSeeder extends Seeder
             'data_tonase' => '200',
             'data_harga' => '8500',
             'data_total' => '1700000',
-            'pembayaran_st' => 'no',
+            'pembayaran_st' => 'cash',
+            'supplier_id' => $suplier2->id,
         ]);
     }
 }

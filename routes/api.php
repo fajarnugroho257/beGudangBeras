@@ -10,6 +10,7 @@ use App\Http\Controllers\api\PembelianController;
 use App\Http\Controllers\api\PengirimanController;
 use App\Http\Controllers\api\SaldoController;
 use App\Http\Controllers\api\SuplierController;
+use App\Http\Controllers\api\StockController;
 use App\Http\Controllers\KategoriController;
 use App\Models\api\Karyawan;
 use Illuminate\Http\Request;
@@ -136,6 +137,14 @@ Route::middleware(['jwt.verify'])->group(function () {
     Route::post('/create-barang', [BarangController::class, 'store']);
     Route::get('/get-barang-by-id/{id}', [BarangController::class, 'show']);
     Route::post('/update-barang/{id}', [BarangController::class, 'update']);
+});
+
+// stock
+Route::middleware(['jwt.verify'])->group(function () {
+    Route::get('/get-stock', [StockController::class, 'index']);
+    Route::post('/create-stock', [StockController::class, 'store']);
+    Route::get('/get-stock-by-id/{id}', [StockController::class, 'show']);
+    Route::post('/update-stock/{id}', [StockController::class, 'update']);
 });
 
 // Route::get('/nota-cetak-image/{nota_id}', [NotaController::class, 'cetak_image']);
