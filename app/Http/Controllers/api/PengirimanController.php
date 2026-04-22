@@ -28,18 +28,20 @@ class PengirimanController extends Controller
         
         $data_kosong = [
             [
-                'created_at' => '',
+                'pengiriman_id' => '0',
                 'barang_id' => '',
-                'data_harga' => '0',
+                'supplier_id' => '',
                 'data_tonase' => '0',
+                'data_harga' => '0',
                 'data_total' => '0',
                 'pembayaran_st' => '',
-                'pengiriman_id' => '0',
             ],
         ];
         
         foreach ($data as $key => $value) {
-            $listPengiriman = PengirimanData::where('pengiriman_id', '=', $value['id'])->get();
+            $listPengiriman = PengirimanData::where('pengiriman_id', '=', $value['id'])
+                ->with('barang', 'suplier')
+                ->get();
             $jlh = count($listPengiriman);
             $data[$key]['listPengiriman'] = $jlh > 0 ? $listPengiriman : $data_kosong;
             $bebanKaryawan = PengirimanBebanKaryawan::where('pengiriman_id', $value['id'])->sum('beban_value');
