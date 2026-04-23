@@ -343,7 +343,7 @@ class PengirimanController extends Controller
         $pengirimanData = $params['pengirimanData'];
         
         // Find pengiriman
-        $data = Pengiriman::where('id', '=', $pengirimanData['pengiriman_id'])->first();
+        $data = Pengiriman::where('id', '=', $params['pengiriman_id'])->first();
         
         if (!$data) {
             return response()->json([
@@ -352,25 +352,60 @@ class PengirimanController extends Controller
             ], 404);
         }
         
-        // Update pengiriman data
-        $data->pengiriman_tgl = $pengirimanData['pengiriman_tgl'];
-        $data->update();
-        
-        // Delete old pengiriman_data
-        PengirimanData::where('pengiriman_id', $pengirimanData['pengiriman_id'])->delete();
-        
-        // Insert new pengiriman_data
-        foreach ($formData as $key => $value) {
-            $dataPengirimanDetail = [
-                'pengiriman_id' => $pengirimanData['pengiriman_id'],
-                'barang_id' => $value['barang_id'] ?? null,
-                'data_tonase' => $value['data_tonase'],
-                'data_harga' => $value['data_harga'],
-                'data_total' => $value['data_total'],
-                'pembayaran_st' => $value['pembayaran_st'] ?? null,
-            ];
-            PengirimanData::create($dataPengirimanDetail);
-        }
+        DB::transaction(function () use ($data, $pengirimanData, $formData, $params) {
+            // Update pengiriman data
+            $data->pengiriman_tgl = $pengirimanData['pengiriman_tgl'];
+            $data->update();
+            
+            // Return stock for old pengiriman_data
+            $oldPengirimanDatas = PengirimanData::where('pengiriman_id', $params['pengiriman_id'])->get();
+            foreach ($oldPengirimanDatas as $pd) {
+                if (!empty($pd->barang_id) && !empty($pd->supplier_id)) {
+                    $stokBarang = StokBarang::where('barang_id', $pd->barang_id)
+                        ->where('suplier_id', $pd->supplier_id)
+                        ->lockForUpdate()
+                        ->first();
+
+                    if ($stokBarang) {
+                        $stokBarang->increment('stok', $pd->data_tonase);
+                    }
+                }
+            }
+
+            // Delete old pengiriman_data
+            PengirimanData::where('pengiriman_id', $params['pengiriman_id'])->delete();
+            
+            // Insert new pengiriman_data
+            foreach ($formData as $key => $value) {
+                $dataPengirimanDetail = [
+                    'pengiriman_id' => $params['pengiriman_id'],
+                    'barang_id' => $value['barang_id'] ?? null,
+                    'data_tonase' => $value['data_tonase'],
+                    'data_harga' => $value['data_harga'],
+                    'data_total' => $value['data_total'],
+                    'pembayaran_st' => $value['pembayaran_st'] ?? null,
+                    'supplier_id' => $value['supplier_id'] ?? null,
+                ];
+                PengirimanData::create($dataPengirimanDetail);
+
+                if (!empty($value['barang_id']) && !empty($value['supplier_id'])) {
+                    $stokBarang = StokBarang::where('barang_id', $value['barang_id'])
+                        ->where('suplier_id', $value['supplier_id'])
+                        ->lockForUpdate()
+                        ->first();
+
+                    if (!$stokBarang) {
+                        throw new \Exception('Stok barang tidak ditemukan');
+                    }
+
+                    if ($stokBarang->stok < $value['data_tonase']) {
+                        throw new \Exception('Stok tidak cukup');
+                    }
+
+                    $stokBarang->decrement('stok', $value['data_tonase']);
+                }
+            }
+        });
 
         return response()->json([
             'success' => true,
@@ -448,7 +483,28 @@ class PengirimanController extends Controller
 
     public function destroy(Request $request)
     {
-        if (Pengiriman::where('id', $request->pengiriman_id)->delete()) {
+        $deleted = DB::transaction(function () use ($request) {
+            $pengiriman = Pengiriman::find($request->pengiriman_id);
+            if ($pengiriman) {
+                $pengirimanDatas = PengirimanData::where('pengiriman_id', $pengiriman->id)->get();
+                foreach ($pengirimanDatas as $pd) {
+                    if (!empty($pd->barang_id) && !empty($pd->supplier_id)) {
+                        $stokBarang = StokBarang::where('barang_id', $pd->barang_id)
+                            ->where('suplier_id', $pd->supplier_id)
+                            ->lockForUpdate()
+                            ->first();
+
+                        if ($stokBarang) {
+                            $stokBarang->increment('stok', $pd->data_tonase);
+                        }
+                    }
+                }
+                return $pengiriman->delete();
+            }
+            return false;
+        });
+
+        if ($deleted) {
             return response()->json([
                 'success' => true,
             ], 200);
