@@ -14,6 +14,70 @@ class StockController extends Controller
      */
     public function index(Request $request)
     {
+        $query = StokBarang::query()
+            ->with(['suplier', 'barang']);
+
+        // Exact filter
+        if ($request->filled('barang_id')) {
+            $query->where('barang_id', $request->input('barang_id'));
+        }
+
+        // Filter barang_nama
+        if ($request->filled('barang_nama')) {
+            $query->whereHas('barang', function ($q) use ($request) {
+                $q->where('nama', 'like', '%' . $request->input('barang_nama') . '%');
+            });
+        }
+
+        // Filter tipe
+        if ($request->filled('tipe')) {
+            $query->whereHas('barang', function ($q) use ($request) {
+                $q->where('tipe', $request->input('tipe'));
+            });
+        }
+
+        // Filter suplier
+        if ($request->filled('suplier')) {
+            $query->whereHas('suplier', function ($q) use ($request) {
+                $q->where('suplier_nama', 'like', '%' . $request->input('suplier') . '%');
+            });
+        }
+
+        $dataStock = $query->get();
+
+        $grouped = $dataStock
+            ->groupBy('barang_id')
+            ->map(function ($items) {
+                $barang = $items->first()->barang;
+
+                return [
+                    'barang_id'   => $barang->id,
+                    'barang_nama' => $barang->nama,
+                    'tipe'        => $barang->tipe,
+                    'total_stok'  => $items->sum('stok'),
+
+                    'suppliers' => $items->map(function ($item) {
+                        return [
+                            'suplier_id'   => $item->suplier->id,
+                            'suplier_nama' => $item->suplier->suplier_nama,
+                            'stok'         => $item->stok,
+                        ];
+                    })->values(),
+                ];
+            })
+            ->values();
+
+        return response()->json([
+            'success' => true,
+            'data' => $grouped,
+        ]);
+    }
+
+    /**
+     * Display a listing of the resource.
+     */
+    public function get_stock(Request $request)
+    {
         $query = StokBarang::query()->with(['suplier', 'barang']);
 
         if ($request->barang_id) {
