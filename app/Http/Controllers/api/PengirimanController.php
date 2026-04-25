@@ -21,10 +21,27 @@ class PengirimanController extends Controller
      */
     public function index(Request $request)
     {
-        $data = Pengiriman::where('pengiriman_tgl', '>=', $request->dateFrom)
-            ->where('pengiriman_tgl', '<=', $request->dateTo)
-            ->orderBy('pengiriman_tgl', 'DESC')
-            ->get();
+        $searchTerm = $request->params;
+
+        // Gunakan with() untuk load data relasi sekaligus (Eager Loading)
+        $data = Pengiriman::with(['pengirimanData.barang', 'pengirimanData.suplier'])
+        ->whereBetween('pengiriman_tgl', [$request->dateFrom, $request->dateTo])
+        ->when($searchTerm, function ($query) use ($searchTerm) {
+            $query->where(function ($q) use ($searchTerm) {
+                // 1. Cari di nama pembeli (Table Pengiriman)
+                $q->where('nama_pembeli', 'like', '%' . $searchTerm . '%')
+                // 2. Cari di nama suplier (Relasi lewat PengirimanData)
+                  ->orWhereHas('pengirimanData.suplier', function ($sub) use ($searchTerm) {
+                      $sub->where('suplier_nama', 'like', '%' . $searchTerm . '%');
+                  })
+                // 3. Cari di nama barang (Relasi lewat PengirimanData)
+                  ->orWhereHas('pengirimanData.barang', function ($sub) use ($searchTerm) {
+                      $sub->where('nama', 'like', '%' . $searchTerm . '%');
+                  });
+            });
+        })
+        ->orderBy('pengiriman_tgl', 'DESC')
+        ->get();
         
         $data_kosong = [
             [
