@@ -453,20 +453,21 @@ class PembelianController extends Controller
         }
         
         // Get old items before deletion
-        $oldItems = PembelianData::where('pembelian_id', $pembelianId)->pluck('barang_id')->unique();
+        $oldItems = PembelianData::where('pembelian_id', $pembelianId)->get();
         
-        // Delete old pembelian_data for this pembelian only
-        PembelianData::where('pembelian_id', $pembelianId)->delete();
-        
-        // Delete old stock entries for this pembelian's items
-        foreach ($oldItems as $barangId) {
-            $stokBarang = StokBarang::where('barang_id', $barangId)
+        // Decrement stock for old items
+        foreach ($oldItems as $item) {
+            $stokBarang = StokBarang::where('barang_id', $item->barang_id)
                 ->where('suplier_id', $pembelian->suplier_id)
                 ->first();
             if ($stokBarang) {
-                $stokBarang->delete();
+                $stokBarang->stok -= $item->pembelian_bersih;
+                $stokBarang->save();
             }
         }
+        
+        // Delete old pembelian_data for this pembelian only
+        PembelianData::where('pembelian_id', $pembelianId)->delete();
         
         // Update pembelian data
         $pembelian->pembelian_tgl = $suplierData['pembelian_tgl'] ?? $pembelian->pembelian_tgl;
@@ -513,12 +514,21 @@ class PembelianController extends Controller
                 ];
                 PembelianData::create($dataPembelianDetail);
                 
-                // Create stock entry for each item
-                StokBarang::create([
-                    'barang_id' => $barangId,
-                    'suplier_id' => $pembelian->suplier_id,
-                    'stok' => $value['pembelian_bersih'],
-                ]);
+                // Update or create stock entry for each item
+                $stokBarang = StokBarang::where('barang_id', $barangId)
+                    ->where('suplier_id', $pembelian->suplier_id)
+                    ->first();
+                
+                if ($stokBarang) {
+                    $stokBarang->stok += $value['pembelian_bersih'];
+                    $stokBarang->save();
+                } else {
+                    StokBarang::create([
+                        'barang_id' => $barangId,
+                        'suplier_id' => $pembelian->suplier_id,
+                        'stok' => $value['pembelian_bersih'],
+                    ]);
+                }
             }
         }
         
@@ -535,11 +545,35 @@ class PembelianController extends Controller
     {
         $pembelianId = $request->id;
         
+        $pembelian = Pembelian::find($pembelianId);
+        
+        if (!$pembelian) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Data pembelian tidak ditemukan',
+            ], 404);
+        }
+        
+        // Get related pembelian_data
+        $pembelianData = PembelianData::where('pembelian_id', $pembelianId)->get();
+        
+        // Decrement stock for each item
+        foreach ($pembelianData as $item) {
+            $stokBarang = StokBarang::where('barang_id', $item->barang_id)
+                ->where('suplier_id', $pembelian->suplier_id)
+                ->first();
+                
+            if ($stokBarang) {
+                $stokBarang->stok -= $item->pembelian_bersih;
+                $stokBarang->save();
+            }
+        }
+        
         // Delete related pembelian_data first (due to foreign key constraints)
         PembelianData::where('pembelian_id', $pembelianId)->delete();
         
         // Then delete the pembelian
-        if (Pembelian::where('id', $pembelianId)->delete()) {
+        if ($pembelian->delete()) {
             return response()->json([
                 'success' => true,
                 'message' => 'Data pembelian berhasil dihapus',
@@ -548,8 +582,8 @@ class PembelianController extends Controller
         
         return response()->json([
             'success' => false,
-            'message' => 'Data pembelian tidak ditemukan',
-        ], 404);
+            'message' => 'Gagal menghapus data pembelian',
+        ], 500);
     }
 
     public function cetak_image(string $pembelian_id)
