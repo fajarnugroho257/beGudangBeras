@@ -102,7 +102,42 @@ class StockController extends Controller
      */
     public function store(Request $request)
     {
-        
+        $validator = Validator::make($request->all(), [
+            'barang_id' => 'required',
+            'suplier_id' => 'required',
+            'stok' => 'required|numeric',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validasi gagal',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        $stock = StokBarang::where('barang_id', $request->barang_id)
+            ->where('suplier_id', $request->suplier_id)
+            ->first();
+
+        if ($stock) {
+            $stock->stok = $request->stok;
+            $stock->save();
+            $message = 'Stok berhasil ditambahkan';
+        } else {
+            $stock = StokBarang::create([
+                'barang_id' => $request->barang_id,
+                'suplier_id' => $request->suplier_id,
+                'stok' => $request->stok,
+            ]);
+            $message = 'Data stok berhasil dibuat';
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => $message,
+            'data' => $stock,
+        ], 200);
     }
 
     /**
