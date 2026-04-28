@@ -16,6 +16,7 @@ class Pembelian extends Model
     protected $fillable = [
         'suplier_id',
         'pembelian_tgl',
+        'pembelian_nota_st',
     ];
 
     protected $casts = [

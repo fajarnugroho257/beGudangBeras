@@ -6,8 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\api\Barang;
 use App\Models\api\Pembelian;
 use App\Models\api\PembelianData;
-use App\Models\api\Suplier;
 use App\Models\api\StokBarang;
+use App\Models\api\Suplier;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -27,29 +27,30 @@ class PembelianController extends Controller
     {
         // Get all pembelian with pembelian_data, filtered by date range and supplier name
         $pembayaran = empty($request->pembayaran) ? '%' : $request->pembayaran;
-        
+
         $pembelianList = Pembelian::with(['suplier', 'pembelianData.barang'])
             ->whereBetween('pembelian_tgl', [$request->dateFrom, $request->dateTo])
             ->whereHas('suplier', function ($query) use ($request) {
-                $query->where('suplier_nama', 'like', '%' . $request->supName . '%');
+                $query->where('suplier_nama', 'like', '%'.$request->supName.'%');
             })
             ->orderBy('pembelian_tgl', 'DESC')
             ->get();
 
         // Group by pembelian_id for display
         $data = [];
-        
+
         foreach ($pembelianList as $pembelian) {
             // Filter by pembayaran
             $pembelianData = $pembelian->pembelianData->filter(function ($item) use ($pembayaran) {
                 return $item->pembayaran === $pembayaran || $pembayaran === '%';
             })->values();
-            
+
             if ($pembelianData->count() > 0) {
                 $totalPembelian = $pembelianData->sum('pembelian_total');
-                
+
                 $data[] = [
                     'id' => $pembelian->id,
+                    'pembelian_nota_st' => $pembelian->pembelian_nota_st,
                     'suplier_id' => $pembelian->suplier->id,
                     'suplier_nama' => $pembelian->suplier->suplier_nama,
                     'alamat' => $pembelian->suplier->alamat,
@@ -89,12 +90,12 @@ class PembelianController extends Controller
         //     'message' => 'Data pembelian berhasil disimpan',
         //     'suplier' => $data,
         // ], 201);
-        
+
         // Handle Suplier - either use existing or create new
-        if (!empty($suplierData['suplier_id'])) {
+        if (! empty($suplierData['suplier_id'])) {
             // Use existing suplier
             $stSuplier = Suplier::find($suplierData['suplier_id']);
-            if (!$stSuplier) {
+            if (! $stSuplier) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Suplier tidak ditemukan',
@@ -116,16 +117,16 @@ class PembelianController extends Controller
                 'suplier_id' => $stSuplier->id,
                 'pembelian_tgl' => $suplierData['pembelian_tgl'] ?? now(),
             ]);
-            
+
             // Create PembelianData for each item
             if ($pembelian) {
                 foreach ($formData as $key => $value) {
                     // Handle Barang - either use existing or create new
                     $barangId = null;
-                    if (!empty($value['barang_id'])) {
+                    if (! empty($value['barang_id'])) {
                         // Use existing barang
                         $barangId = $value['barang_id'];
-                    } elseif (!empty($value['barang_nama'])) {
+                    } elseif (! empty($value['barang_nama'])) {
                         // Create new barang
                         $barang = Barang::create([
                             'nama' => $value['barang_nama'],
@@ -133,7 +134,7 @@ class PembelianController extends Controller
                         ]);
                         $barangId = $barang->id;
                     }
-                    
+
                     $dataPembelianDetail = [
                         'pembelian_id' => $pembelian->id,
                         'pembayaran' => $value['pembayaran'],
@@ -146,13 +147,13 @@ class PembelianController extends Controller
                         'pembelian_nota_st' => $value['pembelian_nota_st'] ?? 'no',
                     ];
                     PembelianData::create($dataPembelianDetail);
-                    
+
                     // Update or create stock (stok_barang) for each item
                     if ($barangId) {
                         $stokBarang = StokBarang::where('barang_id', $barangId)
                             ->where('suplier_id', $stSuplier->id)
                             ->first();
-                        
+
                         if ($stokBarang) {
                             // Add to existing stock
                             $stokBarang->stok += $value['pembelian_bersih'];
@@ -399,14 +400,14 @@ class PembelianController extends Controller
     public function show(string $id)
     {
         $pembelian = Pembelian::with(['suplier', 'pembelianData.barang'])->find($id);
-        
-        if (!$pembelian) {
+
+        if (! $pembelian) {
             return response()->json([
                 'success' => false,
                 'message' => 'Pembelian tidak ditemukan',
             ], 404);
         }
-        
+
         $totalPembelian = $pembelian->pembelianData->sum('pembelian_total');
 
         return response()->json([
@@ -441,23 +442,26 @@ class PembelianController extends Controller
         $pembelianId = $params['pembelian_id'];
         $formData = $params['formData'];
         $suplierData = $params['suplierData'];
-        
+
         // Find the pembelian by pembelian_id
         $pembelian = Pembelian::find($pembelianId);
-        
-        if (!$pembelian) {
+
+        if (! $pembelian) {
             return response()->json([
                 'success' => false,
                 'message' => 'Pembelian tidak ditemukan',
             ], 404);
         }
-        
+
         // Get old items before deletion
-        $oldItems = PembelianData::where('pembelian_id', $pembelianId)->get();
-        
-        // Decrement stock for old items
-        foreach ($oldItems as $item) {
-            $stokBarang = StokBarang::where('barang_id', $item->barang_id)
+        $oldItems = PembelianData::where('pembelian_id', $pembelianId)->pluck('barang_id')->unique();
+
+        // Delete old pembelian_data for this pembelian only
+        PembelianData::where('pembelian_id', $pembelianId)->delete();
+
+        // Delete old stock entries for this pembelian's items
+        foreach ($oldItems as $barangId) {
+            $stokBarang = StokBarang::where('barang_id', $barangId)
                 ->where('suplier_id', $pembelian->suplier_id)
                 ->first();
             if ($stokBarang) {
@@ -465,16 +469,12 @@ class PembelianController extends Controller
                 $stokBarang->save();
             }
         }
-        
-        // Delete old pembelian_data for this pembelian only
-        PembelianData::where('pembelian_id', $pembelianId)->delete();
-        
         // Update pembelian data
         $pembelian->pembelian_tgl = $suplierData['pembelian_tgl'] ?? $pembelian->pembelian_tgl;
         $pembelian->save();
-        
+
         // Update suplier data if provided
-        if (!empty($suplierData['id'])) {
+        if (! empty($suplierData['id'])) {
             $suplier = Suplier::find($suplierData['id']);
             if ($suplier) {
                 $suplier->suplier_nama = $suplierData['suplier_nama'] ?? $suplier->suplier_nama;
@@ -483,15 +483,15 @@ class PembelianController extends Controller
                 $suplier->save();
             }
         }
-        
+
         // Create new PembelianData for each item and update stock
         foreach ($formData as $key => $value) {
             // Handle Barang - either use existing or create new
             $barangId = null;
-            if (!empty($value['barang_id'])) {
+            if (! empty($value['barang_id'])) {
                 // Use existing barang
                 $barangId = $value['barang_id'];
-            } elseif (!empty($value['barang_nama'])) {
+            } elseif (! empty($value['barang_nama'])) {
                 // Create new barang
                 $barang = Barang::create([
                     'nama' => $value['barang_nama'],
@@ -499,7 +499,7 @@ class PembelianController extends Controller
                 ]);
                 $barangId = $barang->id;
             }
-            
+
             if ($barangId) {
                 $dataPembelianDetail = [
                     'pembelian_id' => $pembelianId,
@@ -513,25 +513,16 @@ class PembelianController extends Controller
                     'pembelian_nota_st' => $value['pembelian_nota_st'] ?? 'no',
                 ];
                 PembelianData::create($dataPembelianDetail);
-                
-                // Update or create stock entry for each item
-                $stokBarang = StokBarang::where('barang_id', $barangId)
-                    ->where('suplier_id', $pembelian->suplier_id)
-                    ->first();
-                
-                if ($stokBarang) {
-                    $stokBarang->stok += $value['pembelian_bersih'];
-                    $stokBarang->save();
-                } else {
-                    StokBarang::create([
-                        'barang_id' => $barangId,
-                        'suplier_id' => $pembelian->suplier_id,
-                        'stok' => $value['pembelian_bersih'],
-                    ]);
-                }
+
+                // Create stock entry for each item
+                StokBarang::create([
+                    'barang_id' => $barangId,
+                    'suplier_id' => $pembelian->suplier_id,
+                    'stok' => $value['pembelian_bersih'],
+                ]);
             }
         }
-        
+
         return response()->json([
             'success' => true,
             'message' => 'Data pembelian berhasil diupdate',
@@ -544,34 +535,9 @@ class PembelianController extends Controller
     public function destroy(Request $request)
     {
         $pembelianId = $request->id;
-        
-        $pembelian = Pembelian::find($pembelianId);
-        
-        if (!$pembelian) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Data pembelian tidak ditemukan',
-            ], 404);
-        }
-        
-        // Get related pembelian_data
-        $pembelianData = PembelianData::where('pembelian_id', $pembelianId)->get();
-        
-        // Decrement stock for each item
-        foreach ($pembelianData as $item) {
-            $stokBarang = StokBarang::where('barang_id', $item->barang_id)
-                ->where('suplier_id', $pembelian->suplier_id)
-                ->first();
-                
-            if ($stokBarang) {
-                $stokBarang->stok -= $item->pembelian_bersih;
-                $stokBarang->save();
-            }
-        }
-        
         // Delete related pembelian_data first (due to foreign key constraints)
         PembelianData::where('pembelian_id', $pembelianId)->delete();
-        
+
         // Then delete the pembelian
         if ($pembelian->delete()) {
             return response()->json([
@@ -579,7 +545,7 @@ class PembelianController extends Controller
                 'message' => 'Data pembelian berhasil dihapus',
             ], 200);
         }
-        
+
         return response()->json([
             'success' => false,
             'message' => 'Gagal menghapus data pembelian',
@@ -590,8 +556,8 @@ class PembelianController extends Controller
     {
         // Ambil data dari database
         $data = Pembelian::with(['suplier', 'pembelianData.barang'])->find($pembelian_id);
-        
-        if (!$data) {
+
+        if (! $data) {
             return response()->json([
                 'success' => false,
                 'message' => 'Pembelian tidak ditemukan',

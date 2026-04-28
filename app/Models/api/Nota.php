@@ -9,20 +9,18 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Nota extends Model
 {
     use HasFactory;
+
     protected $table = 'nota';
-    protected $primaryKey = 'nota_id';// Tentukan tipe data primary key (string)
-    protected $keyType = 'string';
-    protected $fillable = ['nota_id', 'nota_st'];
+
+    protected $fillable = ['nota_st'];
 
     public function nota_data(): HasMany
     {
-        return $this->HasMany(NotaData::class, 'nota_id', 'nota_id');
+        return $this->HasMany(NotaData::class, 'nota_id', 'id');
     }
 
     public function nota_bayar(): HasMany
     {
-        return $this->HasMany(NotaBayar::class, 'nota_id', 'nota_id');
+        return $this->HasMany(NotaBayar::class, 'nota_id', 'id');
     }
-
-
 }

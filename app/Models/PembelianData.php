@@ -10,6 +10,7 @@ class PembelianData extends Model
     use HasFactory;
 
     protected $table = 'pembelian_data';
+
     protected $fillable = [
         'pembelian_id',
         'pembayaran',
