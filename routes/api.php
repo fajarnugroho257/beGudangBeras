@@ -143,6 +143,7 @@ Route::middleware(['jwt.verify'])->group(function () {
 Route::middleware(['jwt.verify'])->group(function () {
     Route::get('/get-stock', [StockController::class, 'get_stock']);
     Route::post('/index-stock', [StockController::class, 'index']);
+    Route::post('/index-stock-bulk', [StockController::class, 'index_stock']);
     Route::post('/create-stock', [StockController::class, 'store']);
     Route::get('/get-stock-by-id/{id}', [StockController::class, 'show']);
     Route::post('/update-stock/{id}', [StockController::class, 'update']);

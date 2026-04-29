@@ -33,7 +33,7 @@ class PembelianController extends Controller
             ->whereHas('suplier', function ($query) use ($request) {
                 $query->where('suplier_nama', 'like', '%'.$request->supName.'%');
             })
-            ->orderBy('pembelian_tgl', 'DESC')
+            ->orderBy('id', 'DESC')
             ->get();
 
         // Group by pembelian_id for display

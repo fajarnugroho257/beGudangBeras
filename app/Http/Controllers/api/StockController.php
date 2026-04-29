@@ -92,6 +92,65 @@ class StockController extends Controller
         ], 200);
     }
 
+    public function index_stock(Request $request)
+    {
+        $query = StokBarang::query()
+            ->with(['suplier', 'barang']);
+
+        if ($request->filled('barang_ids') && is_array($request->barang_ids)) {
+            $query->whereIn('barang_id', $request->barang_ids);
+        } elseif ($request->filled('barang_id')) {
+            $query->where('barang_id', $request->barang_id);
+        }
+
+        if ($request->filled('barang_nama')) {
+            $query->whereHas('barang', function ($q) use ($request) {
+                $q->where('nama', 'like', '%' . $request->barang_nama . '%');
+            });
+        }
+
+        if ($request->filled('tipe')) {
+            $query->whereHas('barang', function ($q) use ($request) {
+                $q->where('tipe', $request->tipe);
+            });
+        }
+
+        if ($request->filled('suplier')) {
+            $query->whereHas('suplier', function ($q) use ($request) {
+                $q->where('suplier_nama', 'like', '%' . $request->suplier . '%');
+            });
+        }
+
+        $dataStock = $query->get();
+
+        $grouped = $dataStock
+            ->groupBy('barang_id')
+            ->map(function ($items) {
+                $barang = $items->first()->barang;
+
+                return [
+                    'barang_id'   => $barang->id,
+                    'barang_nama' => $barang->nama,
+                    'tipe'        => $barang->tipe,
+                    'total_stok'  => $items->sum('stok'),
+
+                    'suppliers' => $items->map(function ($item) {
+                        return [
+                            'suplier_id'   => $item->suplier->id,
+                            'suplier_nama' => $item->suplier->suplier_nama,
+                            'stok'         => $item->stok,
+                        ];
+                    })->values(),
+                ];
+            })
+            ->values();
+
+        return response()->json([
+            'success' => true,
+            'data' => $grouped,
+        ]);
+    }
+
     /**
      * Show the form for creating a new resource.
      */
@@ -143,10 +202,7 @@ class StockController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(string $id)
-    {
-        
-    }
+    public function show(string $id) {}
 
     /**
      * Show the form for editing the specified resource.
@@ -159,10 +215,7 @@ class StockController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, string $id)
-    {
-        
-    }
+    public function update(Request $request, string $id) {}
 
     /**
      * Remove the specified resource from storage.

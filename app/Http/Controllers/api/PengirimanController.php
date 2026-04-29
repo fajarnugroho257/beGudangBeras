@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
 use Intervention\Image\ImageManagerStatic as Image;
+use Illuminate\Support\Carbon;
 
 class PengirimanController extends Controller
 {
@@ -40,7 +41,7 @@ class PengirimanController extends Controller
                   });
             });
         })
-        ->orderBy('pengiriman_tgl', 'DESC')
+        ->orderBy('id', 'DESC')
         ->get();
         
         $data_kosong = [
@@ -372,6 +373,9 @@ class PengirimanController extends Controller
         DB::transaction(function () use ($data, $pengirimanData, $formData, $params) {
             // Update pengiriman data
             $data->pengiriman_tgl = $pengirimanData['pengiriman_tgl'];
+            $data->nama_pembeli = $pengirimanData['nama_pembeli'];
+            $data->status = $pengirimanData['status'];
+            $data->uang_muka = $pengirimanData['uang_muka'];
             $data->update();
             
             // Return stock for old pengiriman_data
@@ -443,6 +447,7 @@ class PengirimanController extends Controller
         //
         $pengiriman_id = $pengirimanData['pengiriman_id'];
         $pengiriman_tgl = $pengirimanData['pengiriman_tgl'];
+        $pengiriman_tgl = Carbon::parse($pengirimanData['pengiriman_tgl'])->toDateString();
 
         //
         if (! empty($formDataKaryawan)) {
