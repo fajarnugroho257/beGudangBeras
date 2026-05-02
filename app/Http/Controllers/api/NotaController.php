@@ -232,7 +232,7 @@ class NotaController extends Controller
             $nota_datas = NotaData::where('nota_id', $detail->id)->get();
             //
             foreach ($nota_datas as $key => $nota_data) {
-                $status = PembelianData::where('id', $nota_data->pembelian_id)
+                $status = PembelianData::where('pembelian_id', $nota_data->pembelian_id)
                     ->update([
                         'pembayaran' => $stPembayaran,
                     ]);
