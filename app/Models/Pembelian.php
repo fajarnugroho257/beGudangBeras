@@ -10,6 +10,7 @@ class Pembelian extends Model
     use HasFactory;
 
     protected $table = 'pembelian';
+
     protected $fillable = [
         'suplier_id',
         'pembelian_tgl',
@@ -17,6 +18,16 @@ class Pembelian extends Model
 
     protected $casts = [
         'pembelian_tgl' => 'date',
+    ];
+
+    protected $visible = [
+        'id',
+        'suplier_id',
+        'pembelian_tgl',
+        'pembelian_data_sum_pembelian_total',
+        'pembelian_data_sum_pembelian_bersih',
+        'pembelianData',
+        'suplier',
     ];
 
     public function suplier()

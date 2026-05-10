@@ -28,6 +28,17 @@ class PembelianData extends Model
         'pembelian_nota_st' => 'string',
     ];
 
+    protected $visible = [
+        'barang_id',
+        'pembayaran',
+        'pembelian_kotor',
+        'pembelian_potongan',
+        'pembelian_bersih',
+        'pembelian_harga',
+        'pembelian_total',
+        'barang',
+    ];
+
     public function pembelian()
     {
         return $this->belongsTo(Pembelian::class, 'pembelian_id', 'id');

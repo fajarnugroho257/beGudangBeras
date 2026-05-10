@@ -10,11 +10,23 @@ class Pengiriman extends Model
     use HasFactory;
 
     protected $table = 'pengiriman';
+
     protected $fillable = ['nama_pembeli', 'pengiriman_tgl', 'uang_muka', 'status'];
 
     protected $casts = [
         'pengiriman_tgl' => 'date',
         'status' => 'string',
+    ];
+
+    protected $visible = [
+        'id',
+        'nama_pembeli',
+        'pengiriman_tgl',
+        'uang_muka',
+        'status',
+        'pengirimanData',
+        'pengiriman_data_sum_data_total',
+        'pengiriman_data_sum_data_tonase',
     ];
 
     public function bebanPengiriman()

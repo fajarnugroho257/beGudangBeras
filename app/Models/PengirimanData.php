@@ -10,6 +10,7 @@ class PengirimanData extends Model
     use HasFactory;
 
     protected $table = 'pengiriman_data';
+
     protected $fillable = ['pengiriman_id', 'barang_id', 'data_tonase', 'data_harga', 'data_total', 'pembayaran_st'];
 
     protected $casts = [

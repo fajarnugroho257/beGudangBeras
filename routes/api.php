@@ -3,14 +3,15 @@
 use App\Http\Controllers\api\BarangController;
 use App\Http\Controllers\api\KardusController;
 use App\Http\Controllers\api\KaryawanController;
+use App\Http\Controllers\api\LaporanBerasController;
 use App\Http\Controllers\api\LaporanController;
 use App\Http\Controllers\api\LoginController;
 use App\Http\Controllers\api\NotaController;
 use App\Http\Controllers\api\PembelianController;
 use App\Http\Controllers\api\PengirimanController;
 use App\Http\Controllers\api\SaldoController;
-use App\Http\Controllers\api\SuplierController;
 use App\Http\Controllers\api\StockController;
+use App\Http\Controllers\api\SuplierController;
 use App\Http\Controllers\KategoriController;
 use App\Models\api\Karyawan;
 use Illuminate\Http\Request;
@@ -149,4 +150,8 @@ Route::middleware(['jwt.verify'])->group(function () {
     Route::post('/update-stock/{id}', [StockController::class, 'update']);
 });
 
+// laporan
+Route::middleware(['jwt.verify'])->group(function () {
+    Route::get('/get-data-laporan/{start}/{end}', [LaporanBerasController::class, 'show']);
+});
 // Route::get('/nota-cetak-image/{nota_id}', [NotaController::class, 'cetak_image']);
