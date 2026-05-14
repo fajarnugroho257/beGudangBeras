@@ -109,6 +109,7 @@ class PengirimanController extends Controller
                 'nama_pembeli'   => $pengirimanData['nama_pembeli'] ?? null,
                 'uang_muka'      => $pengirimanData['uang_muka'] ?? null,
                 'status'         => $pengirimanData['status'] ?? null,
+                'total_biaya'    => $pengirimanData['total_biaya'] ?? 0,
             ]);
 
             // 2. Create pengiriman_data + update stock
@@ -118,8 +119,8 @@ class PengirimanController extends Controller
                     'pengiriman_id' => $stPengiriman->id,
                     'barang_id'     => $value['barang_id'] ?? null,
                     'data_tonase'   => $value['data_tonase'],
-                    'data_harga'    => $value['data_harga'],
-                    'data_total'    => $value['data_total'],
+                    // 'data_harga'    => $value['data_harga'],
+                    // 'data_total'    => $value['data_total'],
                     'pembayaran_st' => $value['pembayaran_st'] ?? 'cash',
                     'supplier_id'   => $value['supplier_id'] ?? null,
                 ]);
@@ -376,6 +377,7 @@ class PengirimanController extends Controller
             $data->nama_pembeli = $pengirimanData['nama_pembeli'];
             $data->status = $pengirimanData['status'];
             $data->uang_muka = $pengirimanData['uang_muka'];
+            $data->total_biaya = $pengirimanData['total_biaya'];
             $data->update();
             
             // Return stock for old pengiriman_data

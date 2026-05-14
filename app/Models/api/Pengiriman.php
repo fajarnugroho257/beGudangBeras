@@ -19,10 +19,10 @@ class Pengiriman extends Model
         'status' => 'string',
     ];
 
-    public function bebanPengiriman(): HasMany
-    {
-        return $this->hasMany(BebanPengiriman::class, 'pengiriman_id', 'id');
-    }
+    // public function bebanPengiriman(): HasMany
+    // {
+    //     return $this->hasMany(BebanPengiriman::class, 'pengiriman_id', 'id');
+    // }
 
     public function pengirimanBebanKaryawan(): HasMany
     {
