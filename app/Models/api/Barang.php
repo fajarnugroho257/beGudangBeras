@@ -11,7 +11,7 @@ class Barang extends Model
     use HasFactory;
 
     protected $table = 'barang';
-    protected $fillable = ['nama', 'tipe'];
+    protected $fillable = ['nama', 'tipe', 'is_process'];
 
     protected $casts = [
         'tipe' => 'string',
@@ -25,5 +25,21 @@ class Barang extends Model
     public function stokBarang(): HasMany
     {
         return $this->hasMany(StokBarang::class, 'barang_id', 'id');
+    }
+
+    public function processInputData()
+    {
+        return $this->hasMany(
+            ProcessInputData::class,
+            'barang_id'
+        );
+    }
+
+    public function processOutputData()
+    {
+        return $this->hasMany(
+            ProcessOutputData::class,
+            'barang_id'
+        );
     }
 }

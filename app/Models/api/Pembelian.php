@@ -17,6 +17,7 @@ class Pembelian extends Model
         'suplier_id',
         'pembelian_tgl',
         'pembelian_nota_st',
+        'total_operasional',
     ];
 
     protected $casts = [

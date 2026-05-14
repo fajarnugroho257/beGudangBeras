@@ -51,6 +51,7 @@ class PembelianController extends Controller
                 $data[] = [
                     'id' => $pembelian->id,
                     'pembelian_nota_st' => $pembelian->pembelian_nota_st,
+                    'total_operasional' => $pembelian->total_operasional,
                     'suplier_id' => $pembelian->suplier->id,
                     'suplier_nama' => $pembelian->suplier->suplier_nama,
                     'alamat' => $pembelian->suplier->alamat,
@@ -115,6 +116,7 @@ class PembelianController extends Controller
         if ($stSuplier) {
             $pembelian = Pembelian::create([
                 'suplier_id' => $stSuplier->id,
+                'total_operasional' => $suplierData['total_operasional'] ?? 0,
                 'pembelian_tgl' => $suplierData['pembelian_tgl'] ?? now(),
             ]);
 
@@ -421,6 +423,7 @@ class PembelianController extends Controller
                 'pembelian_tgl' => Carbon::parse($pembelian->pembelian_tgl)->format('Y-m-d'),
                 'pembelian_data' => $pembelian->pembelianData->toArray(),
                 'ttlPembelian' => $totalPembelian,
+                'ttlOperasional' => $pembelian->total_operasional,
             ],
         ], 200);
     }
@@ -472,6 +475,7 @@ class PembelianController extends Controller
         
         // Update pembelian data
         $pembelian->pembelian_tgl = $suplierData['pembelian_tgl'] ?? $pembelian->pembelian_tgl;
+        $pembelian->total_operasional = $suplierData['total_operasional'] ?? $pembelian->total_operasional;
         $pembelian->save();
         
         // Update suplier data if provided

@@ -32,4 +32,12 @@ class Suplier extends Model
     {
         return $this->hasMany(StokBarang::class, 'suplier_id', 'id');
     }
+
+    public function processInputData()
+    {
+        return $this->hasMany(
+            ProcessInputData::class,
+            'supplier_id'
+        );
+    }
 }

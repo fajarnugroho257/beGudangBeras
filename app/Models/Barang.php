@@ -26,4 +26,20 @@ class Barang extends Model
     {
         return $this->hasMany(StokBarang::class, 'barang_id', 'id');
     }
+
+    public function processInputData()
+    {
+        return $this->hasMany(
+            ProcessInputData::class,
+            'barang_id'
+        );
+    }
+
+    public function processOutputData()
+    {
+        return $this->hasMany(
+            ProcessOutputData::class,
+            'barang_id'
+        );
+    }
 }
