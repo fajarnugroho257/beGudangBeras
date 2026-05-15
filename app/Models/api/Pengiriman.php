@@ -15,7 +15,7 @@ class Pengiriman extends Model
     protected $fillable = ['nama_pembeli', 'pengiriman_tgl', 'uang_muka', 'status', 'total_biaya'];
 
     protected $casts = [
-        'pengiriman_tgl' => 'date',
+        'pengiriman_tgl' => 'date:Y-m-d',
         'status' => 'string',
     ];
 

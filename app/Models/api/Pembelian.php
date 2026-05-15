@@ -21,7 +21,7 @@ class Pembelian extends Model
     ];
 
     protected $casts = [
-        'pembelian_tgl' => 'date',
+        'pembelian_tgl' => 'date:Y-m-d',
     ];
 
     //
