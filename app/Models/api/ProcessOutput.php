@@ -17,7 +17,7 @@ class ProcessOutput extends Model
     ];
 
     protected $casts = [
-        'process_output_tgl' => 'date',
+        'process_output_tgl' => 'date:Y-m-d',
     ];
 
     public function processInput()

@@ -17,7 +17,7 @@ class ProcessInput extends Model
     ];
 
     protected $casts = [
-        'process_input_tgl' => 'date',
+        'process_input_tgl' => 'date:Y-m-d',
     ];
 
     public function processInputData()

@@ -20,6 +20,10 @@ class BarangController extends Controller
             $query->where('tipe', $request->tipe);
         }
 
+        if ($request->is_process) {
+            $query->where('is_process', $request->is_process);
+        }
+
         $dataBarang = $query->get();
 
         return response()->json([

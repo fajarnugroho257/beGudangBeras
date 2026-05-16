@@ -14,7 +14,7 @@ class ProcessOutputData extends Model
     protected $fillable = [
         'process_output_id',
         'barang_id',
-        'supplier_id',
+        // 'supplier_id',
         'tonase',
     ];
 
@@ -34,11 +34,11 @@ class ProcessOutputData extends Model
         );
     }
 
-    public function supplier()
-    {
-        return $this->belongsTo(
-            Suplier::class,
-            'supplier_id'
-        );
-    }
+    // public function supplier()
+    // {
+    //     return $this->belongsTo(
+    //         Suplier::class,
+    //         'supplier_id'
+    //     );
+    // }
 }
