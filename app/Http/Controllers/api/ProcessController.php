@@ -172,7 +172,7 @@ class ProcessController extends Controller
 
     public function show($id)
     {
-        $data = ProcessInput::with(['processInputData.barang', 'processInputData.supplier', 'processOutput.processOutputData.barang', 'processOutput.processOutputData.supplier'])->find($id);
+        $data = ProcessInput::with(['processInputData.barang', 'processInputData.supplier', 'processOutput.processOutputData.barang'])->find($id);
 
         if (!$data) {
             return response()->json(
@@ -197,69 +197,195 @@ class ProcessController extends Controller
             'processInputData' => 'required|array|min:1',
         ]);
 
-        $processInput = ProcessInput::find($id);
+        $processInput = ProcessInput::with([
+            'processInputData',
+            'processOutput.processOutputData',
+        ])->find($id);
 
         if (!$processInput) {
-            return response()->json(
-                [
-                    'success' => false,
-                    'message' => 'Data tidak ditemukan',
-                ],
-                404,
-            );
+            return response()->json([
+                'success' => false,
+                'message' => 'Data tidak ditemukan',
+            ], 404);
         }
 
         DB::transaction(function () use ($request, $processInput) {
+            foreach ($processInput->processInputData as $oldInput) {
+
+                if (!empty($oldInput->barang_id) && !empty($oldInput->supplier_id)) {
+
+                    $stokBarang = StokBarang::where('barang_id', $oldInput->barang_id)
+                        ->where('suplier_id', $oldInput->supplier_id)
+                        ->lockForUpdate()
+                        ->first();
+
+                    if ($stokBarang) {
+                        $stokBarang->increment('stok', $oldInput->tonase);
+                    }
+                }
+            }
+
+            $supplierOlahan = Suplier::firstOrCreate(
+                [
+                    'suplier_nama' => 'Produk Olahan',
+                ],
+                [
+                    'alamat' => '-',
+                    'no_hp' => '-',
+                ]
+            );
+
+            foreach ($processInput->processOutput as $oldOutput) {
+
+                foreach ($oldOutput->processOutputData as $oldOutputData) {
+
+                    $stokBarang = StokBarang::where('barang_id', $oldOutputData->barang_id)
+                        ->where('suplier_id', $supplierOlahan->id)
+                        ->lockForUpdate()
+                        ->first();
+
+                    if ($stokBarang) {
+
+                        if ($stokBarang->stok < $oldOutputData->tonase) {
+                            throw new \Exception('Stok output tidak cukup untuk rollback');
+                        }
+
+                        $stokBarang->decrement('stok', $oldOutputData->tonase);
+                    }
+                }
+            }
+
+
             $processInput->update([
                 'process_input_tgl' => $request->processInput['process_input_tgl'],
                 'operasional' => $request->processInput['operasional'] ?? 0,
             ]);
 
-            ProcessInputData::where('process_input_id', $processInput->id)->delete();
+            ProcessInputData::where(
+                'process_input_id',
+                $processInput->id
+            )->delete();
+
+            foreach ($processInput->processOutput as $output) {
+
+                ProcessOutputData::where(
+                    'process_output_id',
+                    $output->id
+                )->delete();
+
+                $output->delete();
+            }
 
             foreach ($request->processInputData as $item) {
+
                 ProcessInputData::create([
                     'process_input_id' => $processInput->id,
                     'barang_id' => $item['barang_id'],
                     'supplier_id' => $item['supplier_id'],
                     'tonase' => $item['tonase'],
                 ]);
-            }
 
-            $oldOutputs = ProcessOutput::where('process_input_id', $processInput->id)->get();
+                if (!empty($item['barang_id']) && !empty($item['supplier_id'])) {
 
-            foreach ($oldOutputs as $output) {
-                ProcessOutputData::where('process_output_id', $output->id)->delete();
+                    $stokBarang = StokBarang::where('barang_id', $item['barang_id'])
+                        ->where('suplier_id', $item['supplier_id'])
+                        ->lockForUpdate()
+                        ->first();
 
-                $output->delete();
+                    if (!$stokBarang) {
+                        throw new \Exception('Stok barang tidak ditemukan');
+                    }
+
+                    if ($stokBarang->stok < $item['tonase']) {
+                        throw new \Exception('Stok tidak cukup untuk proses produksi');
+                    }
+
+                    $stokBarang->decrement('stok', $item['tonase']);
+                }
             }
 
             if (!empty($request->processOutput)) {
+
                 $processOutput = ProcessOutput::create([
                     'process_input_id' => $processInput->id,
                     'process_output_tgl' => $request->processOutput['process_output_tgl'],
                 ]);
 
                 if (!empty($request->processOutputData)) {
+
                     foreach ($request->processOutputData as $item) {
+
+                        $barangId = $item['barang_id'] ?? null;
+                        $supplierId = $supplierOlahan->id;
+
+                        if (
+                            !empty($item['barang_tipe']) &&
+                            strtolower($item['barang_tipe']) != 'beras'
+                        ) {
+
+                            $barangOlahan = Barang::firstOrCreate(
+                                [
+                                    'nama' => $item['barang_tipe'] . ' Olahan',
+                                ],
+                                [
+                                    'tipe' => $item['barang_tipe'],
+                                    'is_process' => 1,
+                                ]
+                            );
+
+                            $barangId = $barangOlahan->id;
+                        } else {
+
+                            if (empty($barangId)) {
+
+                                if (empty($item['barang_nama'])) {
+                                    throw new \Exception('Barang nama wajib diisi');
+                                }
+
+                                $barangBaru = Barang::create([
+                                    'nama' => $item['barang_nama'],
+                                    'tipe' => 'beras',
+                                    'is_process' => 1,
+                                ]);
+
+                                $barangId = $barangBaru->id;
+                            }
+                        }
+
                         ProcessOutputData::create([
                             'process_output_id' => $processOutput->id,
-                            'barang_id' => $item['barang_id'],
-                            'supplier_id' => $item['supplier_id'],
+                            'barang_id' => $barangId,
                             'tonase' => $item['tonase'],
                         ]);
+
+                        $stokBarang = StokBarang::lockForUpdate()
+                            ->firstOrCreate(
+                                [
+                                    'barang_id' => $barangId,
+                                    'suplier_id' => $supplierId,
+                                ],
+                                [
+                                    'stok' => 0,
+                                ]
+                            );
+
+                        $stokBarang->increment('stok', $item['tonase']);
                     }
                 }
             }
         });
 
-        $result = ProcessInput::with(['processInputData.barang', 'processInputData.supplier', 'processOutput.processOutputData.barang', 'processOutput.processOutputData.supplier'])->find($id);
+        $result = ProcessInput::with([
+            'processInputData.barang',
+            'processInputData.supplier',
+            'processOutput.processOutputData.barang',
+        ])->find($id);
 
         return response()->json([
             'success' => true,
             'message' => 'Data berhasil diupdate',
             'data' => $result,
-        ]);
+        ], 200);
     }
 
     public function destroy($id)
@@ -278,11 +404,6 @@ class ProcessController extends Controller
 
         DB::transaction(function () use ($processInput) {
 
-            /**
-             * =====================================
-             * KEMBALIKAN STOCK PROCESS INPUT
-             * =====================================
-             */
             $inputDatas = ProcessInputData::where(
                 'process_input_id',
                 $processInput->id
@@ -303,11 +424,6 @@ class ProcessController extends Controller
                 }
             }
 
-            /**
-             * =====================================
-             * KURANGI STOCK HASIL OUTPUT
-             * =====================================
-             */
             $outputs = ProcessOutput::where(
                 'process_input_id',
                 $processInput->id
@@ -342,31 +458,19 @@ class ProcessController extends Controller
                     }
                 }
 
-                /**
-                 * delete output data
-                 */
                 ProcessOutputData::where(
                     'process_output_id',
                     $output->id
                 )->delete();
 
-                /**
-                 * delete output
-                 */
                 $output->delete();
             }
 
-            /**
-             * delete input data
-             */
             ProcessInputData::where(
                 'process_input_id',
                 $processInput->id
             )->delete();
 
-            /**
-             * delete process input
-             */
             $processInput->delete();
         });
 
