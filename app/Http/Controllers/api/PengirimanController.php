@@ -9,11 +9,11 @@ use App\Models\api\PengirimanBebanKaryawan;
 use App\Models\api\PengirimanBebanLain;
 use App\Models\api\PengirimanData;
 use App\Models\StokBarang;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Intervention\Image\ImageManagerStatic as Image;
-use Illuminate\Support\Carbon;
 
 class PengirimanController extends Controller
 {
@@ -26,24 +26,24 @@ class PengirimanController extends Controller
 
         // Gunakan with() untuk load data relasi sekaligus (Eager Loading)
         $data = Pengiriman::with(['pengirimanData.barang', 'pengirimanData.suplier'])
-        ->whereBetween('pengiriman_tgl', [$request->dateFrom, $request->dateTo])
-        ->when($searchTerm, function ($query) use ($searchTerm) {
-            $query->where(function ($q) use ($searchTerm) {
-                // 1. Cari di nama pembeli (Table Pengiriman)
-                $q->where('nama_pembeli', 'like', '%' . $searchTerm . '%')
-                // 2. Cari di nama suplier (Relasi lewat PengirimanData)
-                  ->orWhereHas('pengirimanData.suplier', function ($sub) use ($searchTerm) {
-                      $sub->where('suplier_nama', 'like', '%' . $searchTerm . '%');
-                  })
-                // 3. Cari di nama barang (Relasi lewat PengirimanData)
-                  ->orWhereHas('pengirimanData.barang', function ($sub) use ($searchTerm) {
-                      $sub->where('nama', 'like', '%' . $searchTerm . '%');
-                  });
-            });
-        })
-        ->orderBy('id', 'DESC')
-        ->get();
-        
+            ->whereBetween('pengiriman_tgl', [$request->dateFrom, $request->dateTo])
+            ->when($searchTerm, function ($query) use ($searchTerm) {
+                $query->where(function ($q) use ($searchTerm) {
+                    // 1. Cari di nama pembeli (Table Pengiriman)
+                    $q->where('nama_pembeli', 'like', '%'.$searchTerm.'%')
+                    // 2. Cari di nama suplier (Relasi lewat PengirimanData)
+                        ->orWhereHas('pengirimanData.suplier', function ($sub) use ($searchTerm) {
+                            $sub->where('suplier_nama', 'like', '%'.$searchTerm.'%');
+                        })
+                    // 3. Cari di nama barang (Relasi lewat PengirimanData)
+                        ->orWhereHas('pengirimanData.barang', function ($sub) use ($searchTerm) {
+                            $sub->where('nama', 'like', '%'.$searchTerm.'%');
+                        });
+                });
+            })
+            ->orderBy('id', 'DESC')
+            ->get();
+
         $data_kosong = [
             [
                 'pengiriman_id' => '0',
@@ -55,7 +55,7 @@ class PengirimanController extends Controller
                 'pembayaran_st' => '',
             ],
         ];
-        
+
         foreach ($data as $key => $value) {
             $listPengiriman = PengirimanData::where('pengiriman_id', '=', $value['id'])
                 ->with('barang', 'suplier')
@@ -100,16 +100,16 @@ class PengirimanController extends Controller
         $data = $request->all();
         $formData = $data['formData'];
         $pengirimanData = $data['pengirimanData'];
-        
+
         $stPengiriman = DB::transaction(function () use ($pengirimanData, $formData) {
 
             // 1. Create pengiriman
             $stPengiriman = Pengiriman::create([
                 'pengiriman_tgl' => $pengirimanData['pengiriman_tgl'],
-                'nama_pembeli'   => $pengirimanData['nama_pembeli'] ?? null,
-                'uang_muka'      => $pengirimanData['uang_muka'] ?? null,
-                'status'         => $pengirimanData['status'] ?? null,
-                'total_biaya'    => $pengirimanData['total_biaya'] ?? 0,
+                'nama_pembeli' => $pengirimanData['nama_pembeli'] ?? null,
+                'uang_muka' => $pengirimanData['uang_muka'] ?? null,
+                'status' => $pengirimanData['status'] ?? null,
+                'total_biaya' => $pengirimanData['total_biaya'] ?? 0,
             ]);
 
             // 2. Create pengiriman_data + update stock
@@ -117,22 +117,22 @@ class PengirimanController extends Controller
 
                 PengirimanData::create([
                     'pengiriman_id' => $stPengiriman->id,
-                    'barang_id'     => $value['barang_id'] ?? null,
-                    'data_tonase'   => $value['data_tonase'],
+                    'barang_id' => $value['barang_id'] ?? null,
+                    'data_tonase' => $value['data_tonase'],
                     // 'data_harga'    => $value['data_harga'],
                     // 'data_total'    => $value['data_total'],
                     'pembayaran_st' => $value['pembayaran_st'] ?? 'cash',
-                    'supplier_id'   => $value['supplier_id'] ?? null,
+                    'supplier_id' => $value['supplier_id'] ?? null,
                 ]);
 
-                if (!empty($value['barang_id']) && !empty($value['supplier_id'])) {
+                if (! empty($value['barang_id']) && ! empty($value['supplier_id'])) {
 
                     $stokBarang = StokBarang::where('barang_id', $value['barang_id'])
                         ->where('suplier_id', $value['supplier_id'])
                         ->lockForUpdate()
                         ->first();
 
-                    if (!$stokBarang) {
+                    if (! $stokBarang) {
                         throw new \Exception('Stok barang tidak ditemukan');
                     }
 
@@ -146,12 +146,12 @@ class PengirimanController extends Controller
 
             return $stPengiriman;
         });
-        
+
         // response
         if ($data['type'] == 'simcetak') {
             // Ambil data dari database
             $data = Pengiriman::with('pengirimanData.barang')->find($stPengiriman->id);
-            
+
             if ($data) {
                 // Generate image/print
                 $ttlData = count($data->pengirimanData);
@@ -184,12 +184,12 @@ class PengirimanController extends Controller
                     $font->align('left');
                     $font->valign('middle');
                 });
-                
+
                 $yPosition = $titleHeight;
                 $img->rectangle(0, $yPosition, $width, $yPosition + $rowHeight, function ($draw) {
                     $draw->border(1, '#000000');
                 });
-                
+
                 $img->text('No', $padding, $yPosition + ($rowHeight / 2), function ($font) {
                     $font->file(public_path('fonts/arial.ttf'));
                     $font->size(14);
@@ -229,14 +229,14 @@ class PengirimanController extends Controller
                         $draw->border(1, '#000000');
                     });
                     $grandTotal += $row->data_total;
-                    
+
                     $img->text($no++, $padding, $yPosition + ($rowHeight / 2), function ($font) {
                         $font->file(public_path('fonts/arial.ttf'));
                         $font->size(12);
                         $font->color('#000000');
                         $font->valign('middle');
                     });
-                    
+
                     $barangNama = $row->barang ? $row->barang->nama : 'N/A';
                     $img->text($barangNama, 50, $yPosition + ($rowHeight / 2), function ($font) {
                         $font->file(public_path('fonts/arial.ttf'));
@@ -283,7 +283,7 @@ class PengirimanController extends Controller
                     return $img->response('png');
                 }
             }
-            
+
             return response()->json([
                 'success' => false,
                 'message' => 'Gagal membuat cetakan',
@@ -327,15 +327,15 @@ class PengirimanController extends Controller
     public function show($pengiriman_id)
     {
         $data = Pengiriman::find($pengiriman_id);
-        
-        if (!$data) {
+
+        if (! $data) {
             return response()->json([
                 'success' => false,
                 'message' => 'Pengiriman tidak ditemukan',
             ], 404);
         }
-        
-        $data['listPengiriman'] = PengirimanData::where('pengiriman_id', $pengiriman_id)->get();
+
+        $data['listPengiriman'] = PengirimanData::with('barang')->where('pengiriman_id', $pengiriman_id)->get();
 
         return response()->json([
             'success' => true,
@@ -360,17 +360,17 @@ class PengirimanController extends Controller
         $params = $request->all();
         $formData = $params['formData'];
         $pengirimanData = $params['pengirimanData'];
-        
+
         // Find pengiriman
         $data = Pengiriman::where('id', '=', $params['pengiriman_id'])->first();
-        
-        if (!$data) {
+
+        if (! $data) {
             return response()->json([
                 'success' => false,
                 'message' => 'Pengiriman tidak ditemukan',
             ], 404);
         }
-        
+
         DB::transaction(function () use ($data, $pengirimanData, $formData, $params) {
             // Update pengiriman data
             $data->pengiriman_tgl = $pengirimanData['pengiriman_tgl'];
@@ -379,11 +379,11 @@ class PengirimanController extends Controller
             $data->uang_muka = $pengirimanData['uang_muka'];
             $data->total_biaya = $pengirimanData['total_biaya'];
             $data->update();
-            
+
             // Return stock for old pengiriman_data
             $oldPengirimanDatas = PengirimanData::where('pengiriman_id', $params['pengiriman_id'])->get();
             foreach ($oldPengirimanDatas as $pd) {
-                if (!empty($pd->barang_id) && !empty($pd->supplier_id)) {
+                if (! empty($pd->barang_id) && ! empty($pd->supplier_id)) {
                     $stokBarang = StokBarang::where('barang_id', $pd->barang_id)
                         ->where('suplier_id', $pd->supplier_id)
                         ->lockForUpdate()
@@ -397,7 +397,7 @@ class PengirimanController extends Controller
 
             // Delete old pengiriman_data
             PengirimanData::where('pengiriman_id', $params['pengiriman_id'])->delete();
-            
+
             // Insert new pengiriman_data
             foreach ($formData as $key => $value) {
                 $dataPengirimanDetail = [
@@ -411,13 +411,13 @@ class PengirimanController extends Controller
                 ];
                 PengirimanData::create($dataPengirimanDetail);
 
-                if (!empty($value['barang_id']) && !empty($value['supplier_id'])) {
+                if (! empty($value['barang_id']) && ! empty($value['supplier_id'])) {
                     $stokBarang = StokBarang::where('barang_id', $value['barang_id'])
                         ->where('suplier_id', $value['supplier_id'])
                         ->lockForUpdate()
                         ->first();
 
-                    if (!$stokBarang) {
+                    if (! $stokBarang) {
                         throw new \Exception('Stok barang tidak ditemukan');
                     }
 
@@ -512,7 +512,7 @@ class PengirimanController extends Controller
             if ($pengiriman) {
                 $pengirimanDatas = PengirimanData::where('pengiriman_id', $pengiriman->id)->get();
                 foreach ($pengirimanDatas as $pd) {
-                    if (!empty($pd->barang_id) && !empty($pd->supplier_id)) {
+                    if (! empty($pd->barang_id) && ! empty($pd->supplier_id)) {
                         $stokBarang = StokBarang::where('barang_id', $pd->barang_id)
                             ->where('suplier_id', $pd->supplier_id)
                             ->lockForUpdate()
@@ -523,8 +523,10 @@ class PengirimanController extends Controller
                         }
                     }
                 }
+
                 return $pengiriman->delete();
             }
+
             return false;
         });
 
@@ -538,18 +540,18 @@ class PengirimanController extends Controller
     public function update_Status(Request $request)
     {
         $detail = PengirimanData::where('id', $request->data_id)->first();
-        if (!$detail) {
+        if (! $detail) {
             return response()->json([
                 'success' => false,
                 'message' => 'Data tidak ditemukan',
             ], 404);
         }
-        
+
         // Update pembayaran_st if provided
-        if (!empty($request->value)) {
+        if (! empty($request->value)) {
             $detail->pembayaran_st = $request->value;
         }
-        
+
         if ($detail->save()) {
             return response()->json([
                 'success' => true,
@@ -567,14 +569,14 @@ class PengirimanController extends Controller
     {
         // Ambil data dari database
         $data = Pengiriman::with('pengirimanData.barang')->where('id', $pengiriman_id)->first();
-        
-        if (!$data) {
+
+        if (! $data) {
             return response()->json([
                 'success' => false,
                 'message' => 'Pengiriman tidak ditemukan',
             ], 404);
         }
-        
+
         // Konfigurasi ukuran tabel
         $ttlData = count($data->pengirimanData);
         $ttlData = $ttlData == 1 ? 2 : $ttlData;
@@ -631,13 +633,7 @@ class PengirimanController extends Controller
             $font->color('#000000');
             $font->valign('middle');
         });
-        $img->text('Harga', 300, $yPosition + ($rowHeight / 2), function ($font) {
-            $font->file(public_path('fonts/arial.ttf'));
-            $font->size(14);
-            $font->color('#000000');
-            $font->valign('middle');
-        });
-        $img->text('Total', 400, $yPosition + ($rowHeight / 2), function ($font) {
+        $img->text('Total', 300, $yPosition + ($rowHeight / 2), function ($font) {
             $font->file(public_path('fonts/arial.ttf'));
             $font->size(14);
             $font->color('#000000');
@@ -649,6 +645,7 @@ class PengirimanController extends Controller
         $no = 1;
         $grandTotal = 0;
         $yPosition += $rowHeight;
+        $grandTonase = 0;
         foreach ($data->pengirimanData as $row) {
             // Gambar border baris
             $img->rectangle(0, $yPosition, $width, $yPosition + $rowHeight, function ($draw) {
@@ -676,29 +673,30 @@ class PengirimanController extends Controller
                 $font->color('#000000');
                 $font->valign('middle');
             });
-            $img->text('Rp '.number_format($row->data_harga, 0, ',', '.'), 300, $yPosition + ($rowHeight / 2), function ($font) {
-                $font->file(public_path('fonts/arial.ttf'));
-                $font->size(12);
-                $font->color('#000000');
-                $font->valign('middle');
-            });
-            $img->text('Rp '.number_format($row->data_total, 0, ',', '.'), 400, $yPosition + ($rowHeight / 2), function ($font) {
-                $font->file(public_path('fonts/arial.ttf'));
-                $font->size(12);
-                $font->color('#000000');
-                $font->valign('middle');
-            });
 
+            $img->text('', 400, $yPosition + ($rowHeight / 2), function ($font) {
+                $font->file(public_path('fonts/arial.ttf'));
+                $font->size(12);
+                $font->color('#000000');
+                $font->valign('middle');
+            });
+            $grandTonase += $row->data_tonase;
             $yPosition += $rowHeight;
         }
 
-        $img->text('Grand Total', 300, $yPosition + ($rowHeight / 2), function ($font) {
+        $img->text('Grand Total', 50, $yPosition + ($rowHeight / 2), function ($font) {
             $font->file(public_path('fonts/arial.ttf'));
             $font->size(12);
             $font->color('#000000');
             $font->valign('middle');
         });
-        $img->text('Rp '.number_format($grandTotal, 0, ',', '.'), 400, $yPosition + ($rowHeight / 2), function ($font) {
+        $img->text($grandTonase, 200, $yPosition + ($rowHeight / 2), function ($font) {
+            $font->file(public_path('fonts/arial.ttf'));
+            $font->size(12);
+            $font->color('#000000');
+            $font->valign('middle');
+        });
+        $img->text('Rp '.number_format($data->total_biaya, 0, ',', '.'), 300, $yPosition + ($rowHeight / 2), function ($font) {
             $font->file(public_path('fonts/arial.ttf'));
             $font->size(12);
             $font->color('#000000');

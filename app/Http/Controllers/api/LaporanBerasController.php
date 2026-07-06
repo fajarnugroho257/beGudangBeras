@@ -10,37 +10,9 @@ use App\Models\PengirimanBebanKaryawan;
 use App\Models\PengirimanBebanLain;
 use App\Models\PengirimanData;
 use Carbon\CarbonPeriod;
-use Illuminate\Http\Request;
 
 class LaporanBerasController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
-    public function index()
-    {
-        //
-    }
-
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
-    {
-        //
-    }
-
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
-    {
-        //
-    }
-
-    /**
-     * Display the specified resource.
-     */
     public function show(string $start, string $end)
     {
         $period = CarbonPeriod::create($start, $end);
@@ -71,12 +43,10 @@ class LaporanBerasController extends Controller
             $bebanLain = PengirimanBebanLain::whereRelation('pengiriman', 'pengiriman_tgl', $resultDate)->sum('beban_value');
             $tanggal[$key]['total_bebanLain'] = $bebanLain ?? 0;
             $tanggal[$key]['total_bebanSemua'] = $bebanLain + $bebanKaryawan;
-            // pengiriman
-            $pengiriman = PengirimanData::whereRelation(
-                'pengiriman',
+            $pengiriman = Pengiriman::where(
                 'pengiriman_tgl',
                 $resultDate
-            )->sum('data_total');
+            )->sum('total_biaya');
             $tanggal[$key]['total_pengiriman'] = $pengiriman ?? 0;
             // tonase
             $total_pengiriman_tonase = PengirimanData::whereRelation(
@@ -88,9 +58,6 @@ class LaporanBerasController extends Controller
             $key++;
         }
 
-        // $pengiriman = Pengiriman::with('pengirimanData')
-        //     ->get();
-
         return response()->json([
             'success' => true,
             'start' => $start,
@@ -99,27 +66,24 @@ class LaporanBerasController extends Controller
         ], 200);
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(string $id)
+    public function detail(string $tanggal)
     {
-        //
-    }
+        $pembelian = Pembelian::with(['pembelianData.barang', 'suplier'])->where('pembelian_tgl', $tanggal)->get();
+        $pengiriman = Pengiriman::with([
+            'pengirimanData.barang',
+            'pengirimanData.suplier',
+            'bebanPengiriman',
+            'pengirimanBebanKaryawan.karyawan',
+            'pengirimanBebanLain',
+        ])
+            ->where('pengiriman_tgl', $tanggal)
+            ->get();
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
-    {
-        //
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
-    {
-        //
+        return response()->json([
+            'success' => true,
+            'tanggal' => $tanggal,
+            'pembelian' => $pembelian,
+            'pengiriman' => $pengiriman,
+        ], 200);
     }
 }

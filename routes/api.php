@@ -9,10 +9,10 @@ use App\Http\Controllers\api\LoginController;
 use App\Http\Controllers\api\NotaController;
 use App\Http\Controllers\api\PembelianController;
 use App\Http\Controllers\api\PengirimanController;
+use App\Http\Controllers\api\ProcessController;
 use App\Http\Controllers\api\SaldoController;
 use App\Http\Controllers\api\StockController;
 use App\Http\Controllers\api\SuplierController;
-use App\Http\Controllers\api\ProcessController;
 use App\Http\Controllers\KategoriController;
 use App\Models\api\Karyawan;
 use Illuminate\Http\Request;
@@ -168,5 +168,6 @@ Route::middleware(['jwt.verify'])->group(function () {
 // laporan
 Route::middleware(['jwt.verify'])->group(function () {
     Route::get('/get-data-laporan/{start}/{end}', [LaporanBerasController::class, 'show']);
+    Route::get('/detail-data-laporan/{tanggal}', [LaporanBerasController::class, 'detail']);
 });
 // Route::get('/nota-cetak-image/{nota_id}', [NotaController::class, 'cetak_image']);

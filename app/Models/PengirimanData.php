@@ -27,6 +27,11 @@ class PengirimanData extends Model
         return $this->belongsTo(Barang::class, 'barang_id', 'id');
     }
 
+    public function suplier()
+    {
+        return $this->belongsTo(Suplier::class, 'supplier_id', 'id');
+    }
+
     public function operasional()
     {
         return $this->hasMany(Operasional::class, 'pengiriman_data_id', 'id');

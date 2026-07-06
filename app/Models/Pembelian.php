@@ -16,6 +16,8 @@ class Pembelian extends Model
         'pembelian_tgl',
     ];
 
+    protected $appends = ['total_pembelian_total'];
+
     protected $casts = [
         'pembelian_tgl' => 'date',
     ];
@@ -24,10 +26,9 @@ class Pembelian extends Model
         'id',
         'suplier_id',
         'pembelian_tgl',
-        'pembelian_data_sum_pembelian_total',
-        'pembelian_data_sum_pembelian_bersih',
         'pembelianData',
         'suplier',
+        'total_pembelian_total',
     ];
 
     public function suplier()
@@ -38,5 +39,14 @@ class Pembelian extends Model
     public function pembelianData()
     {
         return $this->hasMany(PembelianData::class, 'pembelian_id', 'id');
+    }
+
+    public function getTotalPembelianTotalAttribute()
+    {
+        if (! $this->pembelianData) {
+            return 0;
+        }
+
+        return $this->pembelianData->sum('pembelian_total');
     }
 }

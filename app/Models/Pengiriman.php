@@ -27,6 +27,10 @@ class Pengiriman extends Model
         'pengirimanData',
         'pengiriman_data_sum_data_total',
         'pengiriman_data_sum_data_tonase',
+        'bebanPengiriman',
+        'pengirimanBebanKaryawan',
+        'pengirimanBebanLain',
+        'total_biaya',
     ];
 
     public function bebanPengiriman()

@@ -27,6 +27,11 @@ class Suplier extends Model
         return $this->hasMany(Pembelian::class, 'suplier_id', 'id');
     }
 
+    public function pengiriman_data()
+    {
+        return $this->hasMany(PengirimanData::class, 'supplier_id', 'id');
+    }
+
     public function stokBarang()
     {
         return $this->hasMany(StokBarang::class, 'suplier_id', 'id');
