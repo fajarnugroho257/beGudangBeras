@@ -261,288 +261,240 @@ class NotaController extends Controller
 
     public function cetak_image(string $nota_id)
     {
-        // return response()->json(['status' => file_exists(public_path('fonts/Roboto-Regular.ttf'))]);
-        //
         $detail = Nota::select('*')->with('nota_bayar')->where('id', $nota_id)->first();
-        if (! empty($detail)) {
-        } else {
+        if (empty($detail)) {
             return response()->json([
                 'data' => null,
                 'success' => false,
                 'message' => 'Nota tidak ditemukan',
             ], 200);
         }
+
         $ttlBayar = $detail->nota_bayar->count() * 50;
+        
         // Konfigurasi ukuran tabel
-        $ttlDataPembelian = DB::selectOne("SELECT a.id, COUNT(d.id) AS 'ttl'
-                                FROM nota a
-                                INNER JOIN nota_data b ON a.id = b.nota_id
-                                INNER JOIN pembelian c ON b.pembelian_id = c.id
-                                INNER JOIN pembelian_data d ON c.id = d.pembelian_id
-                                WHERE a.id = ?
-                                GROUP BY a.id", [$nota_id]);
-        $width = 1110;    // Lebar tabel
-        $height = 60 + (30 * $ttlDataPembelian->ttl) + $ttlBayar + 200;   // Tinggi tabel
-        $height = $height == 0 ? 120 : $height;
-        // $height = 1000;
-        $rowHeight = 40; // Tinggi setiap baris
-        $padding = 10;   // Jarak teks ke border sel
-        $titleHeight = 60; // Ruang untuk keterangan di atas tabel
+        $width = 1110;    
+        // Perkirakan tinggi awal sedikit lebih besar untuk mengantisipasi text wrap
+        $height = 800; 
+        
+        $rowHeightDefault = 40; 
+        $titleHeight = 60; 
+
+        // Helper fungsi untuk memotong teks (Word Wrap)
+        $wrapText = function ($text, $maxChars = 18) {
+            if (strlen($text) <= $maxChars) {
+                return [$text];
+            }
+            return explode("\n", wordwrap($text, $maxChars, "\n", true));
+        };
+
         // Membuat canvas
         $img = Image::canvas($width, $height, '#ffffff');
+
         // Tambahkan keterangan di atas tabel
         $img->text('Tanggal Cetak', 10, 25, function ($font) {
             $font->file(public_path('fonts/Roboto-Regular.ttf'));
             $font->size(16);
             $font->color('#000000');
-            $font->align('left'); // Center secara horizontal
-            $font->valign('middle'); // Center secara vertikal
+            $font->valign('middle');
         });
         $img->text(':', 120, 20, function ($font) {
             $font->file(public_path('fonts/Roboto-Regular.ttf'));
             $font->size(16);
             $font->color('#000000');
-            $font->align('left'); // Center secara horizontal
-            $font->valign('middle'); // Center secara vertikal
+            $font->valign('middle');
         });
-        $img->text(date('d F Y H:i:s', strtotime(date('Y-m-d H:i:s'))), 150, 25, function ($font) {
+        $img->text(date('d F Y H:i:s'), 150, 25, function ($font) {
             $font->file(public_path('fonts/Roboto-Regular.ttf'));
             $font->size(16);
-            $font->color('#000000');
-            $font->align('left'); // Center secara horizontal
-            $font->valign('middle'); // Center secara vertikal
-        });
-        $yPosition = $titleHeight;
-        // Header tabel
-        $img->rectangle(0, $yPosition, $width, $yPosition + $rowHeight, function ($draw) {
-            $draw->border(1, '#000000'); // Border header
-        });
-        $img->text('No', 10, $yPosition + ($rowHeight / 2), function ($font) {
-            $font->file(public_path('fonts/Roboto-Regular.ttf'));
-            $font->size(14);
-            $font->color('#000000');
-            $font->valign('middle');
-        });
-        $img->text('Suplier', 50, $yPosition + ($rowHeight / 2), function ($font) {
-            $font->file(public_path('fonts/Roboto-Regular.ttf'));
-            $font->size(14);
-            $font->color('#000000');
-            $font->valign('middle');
-        });
-        $img->text('Tanggal', 200, $yPosition + ($rowHeight / 2), function ($font) {
-            $font->file(public_path('fonts/Roboto-Regular.ttf'));
-            $font->size(14);
-            $font->color('#000000');
-            $font->valign('middle');
-        });
-        $img->text('Barang', 320, $yPosition + ($rowHeight / 2), function ($font) {
-            $font->file(public_path('fonts/Roboto-Regular.ttf'));
-            $font->size(14);
-            $font->color('#000000');
-            $font->valign('middle');
-        });
-        $img->text('Tonase', 460, $yPosition + ($rowHeight / 2), function ($font) {
-            $font->file(public_path('fonts/Roboto-Regular.ttf'));
-            $font->size(14);
-            $font->color('#000000');
-            $font->valign('middle');
-        });
-        $img->text('Harga', 600, $yPosition + ($rowHeight / 2), function ($font) {
-            $font->file(public_path('fonts/Roboto-Regular.ttf'));
-            $font->size(14);
-            $font->color('#000000');
-            $font->valign('middle');
-        });
-        $img->text('Total', 730, $yPosition + ($rowHeight / 2), function ($font) {
-            $font->file(public_path('fonts/Roboto-Regular.ttf'));
-            $font->size(14);
-            $font->color('#000000');
-            $font->valign('middle');
-        });
-        $img->text('SubTotal', 860, $yPosition + ($rowHeight / 2), function ($font) {
-            $font->file(public_path('fonts/Roboto-Regular.ttf'));
-            $font->size(14);
             $font->color('#000000');
             $font->valign('middle');
         });
 
-        // Gambar data dan border
-        $y = $rowHeight;
-        $no = 1;
-        $grandTotal = 0;
-        $yPosition += $rowHeight;
-        $pengurangan = 0;
-        $pembelian = Nota::with(['nota_data.pembelian.pembelianData.barang', 'nota_data.pembelian.suplier'])->where('id', $nota_id)->first();
-        $grand_ttl_pembelian = 0;
-        // $tempSuplier = '';
-        foreach ($pembelian->nota_data as $key => $value) {
-            $img->rectangle(0, $yPosition, 0.3, $yPosition + $rowHeight, function ($draw) {
-                $draw->border(1, '#000000'); // Border header
-            });
-            $img->text($no++, 10, $yPosition + ($rowHeight / 2), function ($font) {
-                $font->file(public_path('fonts/Roboto-Regular.ttf'));
-                $font->size(12);
-                $font->color('#000000');
-                $font->valign('middle');
-            });
-            $img->text($value->pembelian->suplier->suplier_nama, 50, $yPosition + ($rowHeight / 2), function ($font) {
-                $font->file(public_path('fonts/Roboto-Regular.ttf'));
-                $font->size(12);
-                $font->color('#000000');
-                $font->valign('middle');
-            });
-            foreach ($value->pembelian->pembelianData as $key_2 => $pembelian_dt) {
-                $img->rectangle(0, $yPosition, 0.3, $yPosition + $rowHeight, function ($draw) {
-                    $draw->border(1, '#000000'); // Border header
-                });
-                if (count($value->pembelian->pembelianData) == 1) {
-                    $img->rectangle(0, $yPosition, $width, $yPosition + 0, function ($draw) {
-                        $draw->border(1, '#000000');
-                    });
-                } else {
-                    $img->rectangle(0, $yPosition, 690, $yPosition + 0, function ($draw) {
-                        $draw->border(1, '#000000');
-                    });
-                }
-                $img->text(date('d F Y', strtotime(date($value->pembelian->pembelian_tgl))), 180, $yPosition + ($rowHeight / 2), function ($font) {
-                    $font->file(public_path('fonts/Roboto-Regular.ttf'));
-                    $font->size(12);
-                    $font->color('#000000');
-                    $font->valign('middle');
-                });
-                $img->text($pembelian_dt->barang->nama, 300, $yPosition + ($rowHeight / 2), function ($font) {
-                    $font->file(public_path('fonts/Roboto-Regular.ttf'));
-                    $font->size(12);
-                    $font->color('#000000');
-                    $font->valign('middle');
-                });
-                $img->text($pembelian_dt->pembelian_kotor.' || '.$pembelian_dt->pembelian_bersih, 460, $yPosition + ($rowHeight / 2), function ($font) {
-                    $font->file(public_path('fonts/Roboto-Regular.ttf'));
-                    $font->size(12);
-                    $font->color('#000000');
-                    $font->valign('middle');
-                });
-                $img->text('Rp '.number_format($pembelian_dt->pembelian_harga, 0, ',', '.'), 580, $yPosition + ($rowHeight / 2), function ($font) {
-                    $font->file(public_path('fonts/Roboto-Regular.ttf'));
-                    $font->size(12);
-                    $font->color('#000000');
-                    $font->valign('middle');
-                });
-                $img->text('Rp '.number_format($pembelian_dt->pembelian_total, 0, ',', '.'), 710, $yPosition + ($rowHeight / 2), function ($font) {
-                    $font->file(public_path('fonts/Roboto-Regular.ttf'));
-                    $font->size(12);
-                    $font->color('#000000');
-                    $font->valign('middle');
-                });
-                $subTtlPembelian = 0;
-                if ($key_2 == 0) {
-                    foreach ($value->pembelian->pembelianData as $key_2 => $pembelian_2) {
-                        $subTtlPembelian += $pembelian_2->pembelian_total;
-                    }
-                    $img->rectangle(690, $yPosition, $width, $yPosition + 0, function ($draw) {
-                        $draw->border(1, '#000000');
-                    });
-                    $img->rectangle(680, $yPosition, 820, $yPosition + $rowHeight, function ($draw) {
-                        $draw->border(1, '#000000');
-                    });
-                    $ttlDatas = $value->pembelian->pembelianData->count();
-                    if ($ttlDatas == 1) {
-                        $img->text('Rp '.number_format($subTtlPembelian, 0, ',', '.'), 850, $yPosition + ($rowHeight / 2), function ($font) {
-                            $font->file(public_path('fonts/Roboto-Regular.ttf'));
-                            $font->size(12);
-                            $font->color('#000000');
-                            $font->valign('middle');
-                        });
-                    } else {
-                        $img->text('Rp '.number_format($subTtlPembelian, 0, ',', '.'), 850, $yPosition + ($rowHeight * $ttlDatas / 2), function ($font) {
-                            $font->file(public_path('fonts/Roboto-Regular.ttf'));
-                            $font->size(12);
-                            $font->color('#000000');
-                            $font->valign('middle');
-                        });
-                    }
-                } else {
-                    $img->rectangle(680, $yPosition, 820, $yPosition + $rowHeight, function ($draw) {
-                        $draw->border(1, '#000000');
-                    });
-                }
-                $yPosition += $rowHeight; // Pindah ke baris berikutnya
-                $grand_ttl_pembelian += $subTtlPembelian;
-            }
-        }
-        $img->rectangle(0, $yPosition, $width, $yPosition + $rowHeight, function ($draw) {
+        $yPosition = $titleHeight;
+
+        // Header tabel
+        $img->rectangle(0, $yPosition, $width, $yPosition + $rowHeightDefault, function ($draw) {
             $draw->border(1, '#000000');
         });
-        $img->text('TOTAL', 760, $yPosition + ($rowHeight / 2), function ($font) {
+        
+        $headers = [
+            'No' => 10, 'Suplier' => 50, 'Tanggal' => 180, 'Barang' => 290, 
+            'Tonase' => 440, 'Harga' => 580, 'Total' => 700, 'SubTotal' => 850
+        ];
+        
+        foreach ($headers as $label => $x) {
+            $img->text($label, $x, $yPosition + ($rowHeightDefault / 2), function ($font) {
+                $font->file(public_path('fonts/Roboto-Regular.ttf'));
+                $font->size(14);
+                $font->color('#000000');
+                $font->valign('middle');
+            });
+        }
+
+        $no = 1;
+        $grand_ttl_pembelian = 0;
+        $yPosition += $rowHeightDefault;
+        
+        $pembelian = Nota::with(['nota_data.pembelian.pembelianData.barang', 'nota_data.pembelian.suplier'])->where('id', $nota_id)->first();
+
+        foreach ($pembelian->nota_data as $key => $value) {
+            // Wrap teks Supplier (Maksimal 16 karakter per baris)
+            $suplierLines = $wrapText($value->pembelian->suplier->suplier_nama, 16);
+            
+            foreach ($value->pembelian->pembelianData as $key_2 => $pembelian_dt) {
+                // Wrap teks Barang (Maksimal 18 karakter per baris)
+                $barangLines = $wrapText($pembelian_dt->barang->nama, 18);
+                
+                // Tentukan tinggi baris berdasarkan teks paling panjang di baris ini
+                $maxLines = max(count($suplierLines), count($barangLines));
+                $currentRowHeight = max($rowHeightDefault, $maxLines * 20);
+
+                // Garis pembatas baris
+                $img->rectangle(0, $yPosition, $width, $yPosition + $currentRowHeight, function ($draw) {
+                    $draw->border(1, '#000000');
+                });
+
+                // Cetak No & Supplier (hanya di baris pertama jika pembelian punya banyak detail)
+                if ($key_2 == 0) {
+                    $img->text($no++, 10, $yPosition + 20, function ($font) {
+                        $font->file(public_path('fonts/Roboto-Regular.ttf'));
+                        $font->size(12);
+                        $font->color('#000000');
+                    });
+                    
+                    // Print multiline supplier
+                    foreach ($suplierLines as $idx => $line) {
+                        $img->text($line, 50, $yPosition + 20 + ($idx * 16), function ($font) {
+                            $font->file(public_path('fonts/Roboto-Regular.ttf'));
+                            $font->size(12);
+                            $font->color('#000000');
+                        });
+                    }
+                }
+
+                // Cetak Tanggal
+                $img->text(date('d F Y', strtotime($value->pembelian->pembelian_tgl)), 180, $yPosition + 20, function ($font) {
+                    $font->file(public_path('fonts/Roboto-Regular.ttf'));
+                    $font->size(12);
+                    $font->color('#000000');
+                });
+
+                // Cetak Multiline Barang
+                foreach ($barangLines as $idx => $line) {
+                    $img->text($line, 290, $yPosition + 20 + ($idx * 16), function ($font) {
+                        $font->file(public_path('fonts/Roboto-Regular.ttf'));
+                        $font->size(12);
+                        $font->color('#000000');
+                    });
+                }
+
+                // Cetak Tonase, Harga, dan Total
+                $img->text($pembelian_dt->pembelian_kotor.' || '.$pembelian_dt->pembelian_bersih, 440, $yPosition + 20, function ($font) {
+                    $font->file(public_path('fonts/Roboto-Regular.ttf'));
+                    $font->size(12);
+                    $font->color('#000000');
+                });
+                $img->text('Rp '.number_format($pembelian_dt->pembelian_harga, 0, ',', '.'), 580, $yPosition + 20, function ($font) {
+                    $font->file(public_path('fonts/Roboto-Regular.ttf'));
+                    $font->size(12);
+                    $font->color('#000000');
+                });
+                $img->text('Rp '.number_format($pembelian_dt->pembelian_total, 0, ',', '.'), 700, $yPosition + 20, function ($font) {
+                    $font->file(public_path('fonts/Roboto-Regular.ttf'));
+                    $font->size(12);
+                    $font->color('#000000');
+                });
+
+                // SubTotal calculation & print
+                $subTtlPembelian = 0;
+                if ($key_2 == 0) {
+                    foreach ($value->pembelian->pembelianData as $pembelian_2) {
+                        $subTtlPembelian += $pembelian_2->pembelian_total;
+                    }
+                    $img->text('Rp '.number_format($subTtlPembelian, 0, ',', '.'), 850, $yPosition + 20, function ($font) {
+                        $font->file(public_path('fonts/Roboto-Regular.ttf'));
+                        $font->size(12);
+                        $font->color('#000000');
+                    });
+                    $grand_ttl_pembelian += $subTtlPembelian;
+                }
+
+                // Pindah ke posisi Y berikutnya mengikuti tinggi baris dinamis
+                $yPosition += $currentRowHeight;
+            }
+        }
+
+        // Baris Grand Total
+        $img->rectangle(0, $yPosition, $width, $yPosition + $rowHeightDefault, function ($draw) {
+            $draw->border(1, '#000000');
+        });
+        $img->text('TOTAL', 730, $yPosition + ($rowHeightDefault / 2), function ($font) {
             $font->file(public_path('fonts/Roboto-Regular.ttf'));
             $font->size(12);
             $font->color('#000000');
             $font->valign('middle');
         });
-        $img->text('Rp '.number_format($grand_ttl_pembelian, 0, ',', '.'), 850, $yPosition + ($rowHeight / 2), function ($font) {
+        $img->text('Rp '.number_format($grand_ttl_pembelian, 0, ',', '.'), 850, $yPosition + ($rowHeightDefault / 2), function ($font) {
             $font->file(public_path('fonts/Roboto-Regular.ttf'));
             $font->size(12);
             $font->color('#000000');
             $font->valign('middle');
         });
-        $yPosition = $yPosition + 40;
+
+        $yPosition += 40;
         $ttl_cicil = 0;
+
+        // Data Pembayaran / Cicilan
         foreach ($detail->nota_bayar as $row) {
-            // Gambar border baris
-            $img->rectangle(0, $yPosition, $width, $yPosition + $rowHeight, function ($draw) {
+            $img->rectangle(0, $yPosition, $width, $yPosition + $rowHeightDefault, function ($draw) {
                 $draw->border(1, '#000000');
             });
-            $img->text('TU', 760, $yPosition + ($rowHeight / 2), function ($font) {
+            $img->text('TU', 760, $yPosition + ($rowHeightDefault / 2), function ($font) {
                 $font->file(public_path('fonts/Roboto-Regular.ttf'));
                 $font->size(12);
                 $font->color('#000000');
                 $font->valign('middle');
             });
-            $img->text('Rp '.number_format($row->bayar_value, 0, ',', '.'), 850, $yPosition + ($rowHeight / 2), function ($font) {
+            $img->text('Rp '.number_format($row->bayar_value, 0, ',', '.'), 850, $yPosition + ($rowHeightDefault / 2), function ($font) {
                 $font->file(public_path('fonts/Roboto-Regular.ttf'));
                 $font->size(12);
                 $font->color('#000000');
                 $font->valign('middle');
             });
-            $img->text(date('d M Y H:i:s', strtotime($row->updated_at)), 960, $yPosition + ($rowHeight / 2), function ($font) {
+            $img->text(date('d M Y H:i:s', strtotime($row->updated_at)), 960, $yPosition + ($rowHeightDefault / 2), function ($font) {
                 $font->file(public_path('fonts/Roboto-Regular.ttf'));
                 $font->size(12);
                 $font->color('#000000');
                 $font->valign('middle');
             });
             $ttl_cicil += $row->bayar_value;
-            $yPosition += $rowHeight; // Pindah ke baris berikutnya
+            $yPosition += $rowHeightDefault;
         }
 
-        $img->text('Kekurangan Pembayaran', 680, $yPosition + ($rowHeight / 2), function ($font) {
+        // Kekurangan Pembayaran
+        $img->text('Kekurangan Pembayaran', 680, $yPosition + ($rowHeightDefault / 2), function ($font) {
             $font->file(public_path('fonts/Roboto-Regular.ttf'));
             $font->size(12);
             $font->color('#000000');
             $font->valign('middle');
         });
-        $img->text('Rp '.number_format($grand_ttl_pembelian - $ttl_cicil, 0, ',', '.'), 850, $yPosition + ($rowHeight / 2), function ($font) {
+        $img->text('Rp '.number_format($grand_ttl_pembelian - $ttl_cicil, 0, ',', '.'), 850, $yPosition + ($rowHeightDefault / 2), function ($font) {
             $font->file(public_path('fonts/Roboto-Regular.ttf'));
             $font->size(12);
             $font->color('#000000');
             $font->valign('middle');
         });
 
-        // Simpan atau kirim ke browser
+        // Simpan file
         if ($img->save(public_path('tabel_nota.png'))) {
-            // Tentukan path file, misalnya di folder 'public/uploads'
             $filePath = public_path('tabel_nota.png');
-
-            // Cek apakah file ada
             if (File::exists($filePath)) {
-                // Mengembalikan response download
-                // return response()->download($filePath);
                 return $img->response('png');
             } else {
-                // Jika file tidak ditemukan, mengembalikan error 404
                 return response()->json(['error' => 'File not found.'], 404);
             }
         }
-        // return $img->response('png');
     }
 
     public function delete_nota(Request $request)
