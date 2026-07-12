@@ -159,14 +159,17 @@ class PembelianController extends Controller
                         if ($stokBarang) {
                             // Add to existing stock
                             $stokBarang->stok += $value['pembelian_bersih'];
+                            $stokBarang->price = $value['pembelian_harga'] ?? 0;
                             $stokBarang->save();
                         } else {
                             // Create new stock entry
-                            StokBarang::create([
+                            $newStok = StokBarang::create([
                                 'barang_id' => $barangId,
                                 'suplier_id' => $stSuplier->id,
                                 'stok' => $value['pembelian_bersih'],
                             ]);
+                            $newStok->price = $value['pembelian_harga'] ?? 0;
+                            $newStok->save();
                         }
                     }
                 }
@@ -526,13 +529,16 @@ class PembelianController extends Controller
                 
                 if ($stokBarang) {
                     $stokBarang->stok += $value['pembelian_bersih'];
+                    $stokBarang->price = $value['pembelian_harga'] ?? 0;
                     $stokBarang->save();
                 } else {
-                    StokBarang::create([
+                    $newStok = StokBarang::create([
                         'barang_id' => $barangId,
                         'suplier_id' => $pembelian->suplier_id,
                         'stok' => $value['pembelian_bersih'],
                     ]);
+                    $newStok->price = $value['pembelian_harga'] ?? 0;
+                    $newStok->save();
                 }
             }
         }
