@@ -31,6 +31,8 @@ class PengirimanController extends Controller
                 $query->where(function ($q) use ($searchTerm) {
                     // 1. Cari di nama pembeli (Table Pengiriman)
                     $q->where('nama_pembeli', 'like', '%'.$searchTerm.'%')
+                    // 1.5 Cari di nama barang nota (Table Pengiriman)
+                        ->orWhere('nama_barang_nota', 'like', '%'.$searchTerm.'%')
                     // 2. Cari di nama suplier (Relasi lewat PengirimanData)
                         ->orWhereHas('pengirimanData.suplier', function ($sub) use ($searchTerm) {
                             $sub->where('suplier_nama', 'like', '%'.$searchTerm.'%');
@@ -110,6 +112,7 @@ class PengirimanController extends Controller
                 'uang_muka' => $pengirimanData['uang_muka'] ?? null,
                 'status' => $pengirimanData['status'] ?? null,
                 'total_biaya' => $pengirimanData['total_biaya'] ?? 0,
+                'nama_barang_nota' => $pengirimanData['nama_barang_nota'] ?? null,
             ]);
 
             // 2. Create pengiriman_data + update stock
@@ -378,6 +381,7 @@ class PengirimanController extends Controller
             $data->status = $pengirimanData['status'];
             $data->uang_muka = $pengirimanData['uang_muka'];
             $data->total_biaya = $pengirimanData['total_biaya'];
+            $data->nama_barang_nota = $pengirimanData['nama_barang_nota'] ?? null;
             $data->update();
 
             // Return stock for old pengiriman_data
